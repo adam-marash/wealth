@@ -30,6 +30,18 @@
         {
           "command": "git *",
           "description": "Git operations (add, commit, push, status, etc)"
+        },
+        {
+          "command": "python3 *",
+          "description": "Run Python scripts (json formatting, analysis, etc)"
+        },
+        {
+          "command": "node *",
+          "description": "Run Node.js scripts (test scripts, data analysis, etc)"
+        },
+        {
+          "command": "cat *",
+          "description": "View file contents"
         }
       ]
     }
