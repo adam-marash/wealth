@@ -4,20 +4,8 @@
     "Bash": {
       "allow": [
         {
-          "command": "gh issue create:*",
-          "description": "Create GitHub issues"
-        },
-        {
-          "command": "gh issue close *",
-          "description": "Close GitHub issues with comments"
-        },
-        {
-          "command": "gh issue comment *",
-          "description": "Add comments to GitHub issues"
-        },
-        {
-          "command": "gh issue view *",
-          "description": "View GitHub issue details"
+          "command": "gh issue *",
+          "description": "GitHub issue operations (create, close, comment, view, etc)"
         },
         {
           "command": "npm *",
