@@ -16,6 +16,10 @@
           "description": "Add comments to GitHub issues"
         },
         {
+          "command": "gh issue view *",
+          "description": "View GitHub issue details"
+        },
+        {
           "command": "npm *",
           "description": "Run npm commands (install, run, etc)"
         },
