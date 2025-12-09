@@ -5,6 +5,8 @@
 
 import { Hono } from 'hono';
 import type { Env, ApiResponse } from '../types';
+import { calculateXIRR, transactionsToCashFlows } from '../calculations/irr';
+import { calculateAllMetrics } from '../calculations/metrics';
 
 const reports = new Hono<{ Bindings: Env }>();
 
@@ -427,6 +429,34 @@ reports.get('/investment/:id/summary', async (c) => {
       LIMIT 10
     `).bind(investment_id).all();
 
+    // Get all transactions for IRR/metrics calculation
+    const allTransactions = await c.env.DB.prepare(`
+      SELECT date, transaction_category, amount_normalized
+      FROM transactions
+      WHERE investment_id = ?
+      ORDER BY date ASC
+    `).bind(investment_id).all();
+
+    // Calculate XIRR
+    let xirr: number | null = null;
+    if (allTransactions.results.length >= 2) {
+      const cashFlows = transactionsToCashFlows(
+        allTransactions.results as Array<{
+          date: string;
+          transaction_category: string;
+          amount_normalized: number;
+        }>,
+        true // Include current position
+      );
+      xirr = calculateXIRR(cashFlows);
+    }
+
+    // Calculate financial metrics (MOIC, DPI, RVPI, TVPI)
+    const metrics = calculateAllMetrics(
+      transactionSummary?.total_called || 0,
+      transactionSummary?.total_distributed || 0
+    );
+
     const summary = {
       investment: investmentResult,
       transaction_summary: {
@@ -436,6 +466,14 @@ reports.get('/investment/:id/summary', async (c) => {
       },
       commitments: commitments.results,
       recent_transactions: recentTransactions.results,
+      performance: {
+        xirr: xirr, // As decimal (e.g., 0.15 = 15%)
+        xirr_percentage: xirr !== null ? (xirr * 100).toFixed(2) + '%' : null,
+        moic: metrics.moic,
+        dpi: metrics.dpi,
+        rvpi: metrics.rvpi,
+        tvpi: metrics.tvpi,
+      },
     };
 
     return c.json<ApiResponse>({
@@ -533,6 +571,156 @@ reports.get('/dashboard', async (c) => {
     return c.json<ApiResponse>({
       success: false,
       error: 'Failed to generate dashboard data',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    }, 500);
+  }
+});
+
+/**
+ * GET /api/reports/equity-returns
+ * Equity returns report with IRR and performance metrics for all investments
+ */
+reports.get('/equity-returns', async (c) => {
+  try {
+    // Get all investments with their transaction summaries
+    const investmentsResult = await c.env.DB.prepare(`
+      SELECT
+        i.id,
+        i.name,
+        i.investment_type,
+        i.investment_group,
+        i.status,
+        COALESCE(SUM(CASE WHEN t.transaction_category = 'capital_call' THEN ABS(t.amount_normalized) ELSE 0 END), 0) as total_called,
+        COALESCE(SUM(CASE WHEN t.transaction_category = 'distribution' THEN ABS(t.amount_normalized) ELSE 0 END), 0) as total_distributed,
+        COALESCE(SUM(CASE WHEN t.transaction_category = 'capital_call' THEN ABS(t.amount_usd) ELSE 0 END), 0) as total_called_usd,
+        COALESCE(SUM(CASE WHEN t.transaction_category = 'distribution' THEN ABS(t.amount_usd) ELSE 0 END), 0) as total_distributed_usd,
+        COUNT(t.id) as transaction_count,
+        MIN(t.date) as first_transaction_date,
+        MAX(t.date) as last_transaction_date
+      FROM investments i
+      LEFT JOIN transactions t ON i.id = t.investment_id
+      GROUP BY i.id, i.name, i.investment_type, i.investment_group, i.status
+      HAVING transaction_count > 0
+      ORDER BY i.name
+    `).all();
+
+    const investments = [];
+
+    // Calculate IRR and metrics for each investment
+    for (const inv of investmentsResult.results as any[]) {
+      // Get all transactions for this investment
+      const txResult = await c.env.DB.prepare(`
+        SELECT date, transaction_category, amount_normalized
+        FROM transactions
+        WHERE investment_id = ?
+        ORDER BY date ASC
+      `).bind(inv.id).all();
+
+      // Calculate XIRR
+      let xirr: number | null = null;
+      if (txResult.results.length >= 2) {
+        const cashFlows = transactionsToCashFlows(
+          txResult.results as Array<{
+            date: string;
+            transaction_category: string;
+            amount_normalized: number;
+          }>,
+          true // Include current position
+        );
+        xirr = calculateXIRR(cashFlows);
+      }
+
+      // Calculate metrics
+      const metrics = calculateAllMetrics(
+        inv.total_called,
+        inv.total_distributed
+      );
+
+      investments.push({
+        id: inv.id,
+        name: inv.name,
+        investment_type: inv.investment_type,
+        investment_group: inv.investment_group,
+        status: inv.status,
+        total_called: inv.total_called,
+        total_distributed: inv.total_distributed,
+        total_called_usd: inv.total_called_usd,
+        total_distributed_usd: inv.total_distributed_usd,
+        net_position: inv.total_called - inv.total_distributed,
+        net_position_usd: inv.total_called_usd - inv.total_distributed_usd,
+        transaction_count: inv.transaction_count,
+        first_transaction_date: inv.first_transaction_date,
+        last_transaction_date: inv.last_transaction_date,
+        performance: {
+          xirr: xirr,
+          xirr_percentage: xirr !== null ? (xirr * 100).toFixed(2) + '%' : null,
+          moic: metrics.moic,
+          dpi: metrics.dpi,
+          rvpi: metrics.rvpi,
+          tvpi: metrics.tvpi,
+        },
+      });
+    }
+
+    // Calculate portfolio-level metrics
+    const totalCalled = investments.reduce((sum, i) => sum + i.total_called, 0);
+    const totalDistributed = investments.reduce((sum, i) => sum + i.total_distributed, 0);
+    const totalCalledUSD = investments.reduce((sum, i) => sum + i.total_called_usd, 0);
+    const totalDistributedUSD = investments.reduce((sum, i) => sum + i.total_distributed_usd, 0);
+
+    const portfolioMetrics = calculateAllMetrics(totalCalled, totalDistributed);
+
+    // Calculate portfolio-level XIRR (combine all cash flows)
+    const allTxResult = await c.env.DB.prepare(`
+      SELECT date, transaction_category, amount_normalized
+      FROM transactions
+      WHERE transaction_category IN ('capital_call', 'distribution')
+      ORDER BY date ASC
+    `).all();
+
+    let portfolioXIRR: number | null = null;
+    if (allTxResult.results.length >= 2) {
+      const cashFlows = transactionsToCashFlows(
+        allTxResult.results as Array<{
+          date: string;
+          transaction_category: string;
+          amount_normalized: number;
+        }>,
+        true
+      );
+      portfolioXIRR = calculateXIRR(cashFlows);
+    }
+
+    return c.json<ApiResponse>({
+      success: true,
+      message: 'Equity returns report generated',
+      data: {
+        portfolio_summary: {
+          total_investments: investments.length,
+          total_called: totalCalled,
+          total_distributed: totalDistributed,
+          total_called_usd: totalCalledUSD,
+          total_distributed_usd: totalDistributedUSD,
+          net_position: totalCalled - totalDistributed,
+          net_position_usd: totalCalledUSD - totalDistributedUSD,
+          performance: {
+            xirr: portfolioXIRR,
+            xirr_percentage: portfolioXIRR !== null ? (portfolioXIRR * 100).toFixed(2) + '%' : null,
+            moic: portfolioMetrics.moic,
+            dpi: portfolioMetrics.dpi,
+            rvpi: portfolioMetrics.rvpi,
+            tvpi: portfolioMetrics.tvpi,
+          },
+        },
+        investments: investments,
+      },
+    });
+
+  } catch (error) {
+    console.error('Error generating equity returns report:', error);
+    return c.json<ApiResponse>({
+      success: false,
+      error: 'Failed to generate equity returns report',
       message: error instanceof Error ? error.message : 'Unknown error',
     }, 500);
   }
