@@ -355,3 +355,147 @@ export async function getCommitmentSummary(
     percentage_called: totalCommitted > 0 ? (totalCalled / totalCommitted) * 100 : 0,
   };
 }
+
+/**
+ * Phase detection result
+ */
+export interface PhaseDetectionResult {
+  phase: 'building_up' | 'stable' | 'drawing_down';
+  capital_calls_total: number;
+  distributions_total: number;
+  ratio: number;
+  threshold: number;
+  analysis_period_months: number;
+  analysis_start_date: string;
+  analysis_end_date: string;
+  capital_calls_count: number;
+  distributions_count: number;
+  confidence: 'high' | 'medium' | 'low';
+}
+
+/**
+ * Detect investment phase based on transaction patterns
+ * Analyzes last 24 months of transactions
+ * Returns phase with calculation details
+ */
+export async function detectInvestmentPhase(
+  db: D1Database,
+  investment_id: number
+): Promise<PhaseDetectionResult | null> {
+  // Calculate date 24 months ago
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setMonth(startDate.getMonth() - 24);
+
+  const startDateStr = startDate.toISOString().split('T')[0];
+  const endDateStr = endDate.toISOString().split('T')[0];
+
+  // Get all transactions for this investment in the last 24 months
+  const result = await db.prepare(`
+    SELECT
+      transaction_category,
+      ABS(amount_normalized) as amount,
+      date
+    FROM transactions
+    WHERE investment_id = ?
+      AND date >= ?
+      AND date <= ?
+      AND transaction_category IN ('capital_call', 'distribution')
+    ORDER BY date DESC
+  `).bind(investment_id, startDateStr, endDateStr).all<{
+    transaction_category: string;
+    amount: number;
+    date: string;
+  }>();
+
+  const transactions = result.results;
+
+  if (transactions.length === 0) {
+    // No transactions in analysis period
+    return null;
+  }
+
+  // Calculate totals
+  const capitalCalls = transactions.filter(t => t.transaction_category === 'capital_call');
+  const distributions = transactions.filter(t => t.transaction_category === 'distribution');
+
+  const capitalCallsTotal = capitalCalls.reduce((sum, t) => sum + t.amount, 0);
+  const distributionsTotal = distributions.reduce((sum, t) => sum + t.amount, 0);
+
+  // Calculate ratio (capital calls to distributions)
+  // If no distributions, ratio is infinity (pure building up)
+  // If no capital calls, ratio is 0 (pure drawing down)
+  let ratio = 0;
+  if (distributionsTotal > 0) {
+    ratio = capitalCallsTotal / distributionsTotal;
+  } else if (capitalCallsTotal > 0) {
+    ratio = Infinity;
+  }
+
+  // Determine phase based on 2x threshold
+  const threshold = 2.0;
+  let phase: 'building_up' | 'stable' | 'drawing_down';
+
+  if (ratio > threshold) {
+    phase = 'building_up'; // capital calls > 2x distributions
+  } else if (ratio < (1 / threshold)) {
+    phase = 'drawing_down'; // distributions > 2x capital calls
+  } else {
+    phase = 'stable'; // balanced or neither condition met
+  }
+
+  // Determine confidence based on transaction count
+  let confidence: 'high' | 'medium' | 'low';
+  const totalTxCount = transactions.length;
+  if (totalTxCount >= 10) {
+    confidence = 'high';
+  } else if (totalTxCount >= 5) {
+    confidence = 'medium';
+  } else {
+    confidence = 'low';
+  }
+
+  return {
+    phase,
+    capital_calls_total: capitalCallsTotal,
+    distributions_total: distributionsTotal,
+    ratio: ratio === Infinity ? 999 : ratio, // Cap infinity for JSON serialization
+    threshold,
+    analysis_period_months: 24,
+    analysis_start_date: startDateStr,
+    analysis_end_date: endDateStr,
+    capital_calls_count: capitalCalls.length,
+    distributions_count: distributions.length,
+    confidence,
+  };
+}
+
+/**
+ * Update commitment phases for an investment based on detected phase
+ * Only updates commitments where manual_phase is false
+ */
+export async function updateInvestmentPhase(
+  db: D1Database,
+  investment_id: number
+): Promise<PhaseDetectionResult | null> {
+  // Detect phase
+  const detection = await detectInvestmentPhase(db, investment_id);
+
+  if (!detection) {
+    return null;
+  }
+
+  // Get all commitments for this investment that don't have manual override
+  const commitments = await getCommitmentsByInvestment(db, investment_id);
+
+  // Update phase for non-manual commitments
+  for (const commitment of commitments) {
+    if (!commitment.manual_phase) {
+      await updateCommitment(db, commitment.id!, {
+        phase: detection.phase,
+      });
+    }
+  }
+
+  return detection;
+}

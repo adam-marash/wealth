@@ -162,4 +162,56 @@ test.post('/convert-to-usd', async (c) => {
   }
 });
 
+/**
+ * GET /api/test/transactions
+ * Get all transactions from database
+ */
+test.get('/transactions', async (c) => {
+  try {
+    const result = await c.env.DB.prepare(`
+      SELECT * FROM transactions
+      ORDER BY date DESC
+    `).all();
+
+    return c.json<ApiResponse>({
+      success: true,
+      data: result.results,
+    });
+
+  } catch (error) {
+    console.error('Error fetching transactions:', error);
+    return c.json<ApiResponse>({
+      success: false,
+      error: 'Failed to fetch transactions',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    }, 500);
+  }
+});
+
+/**
+ * GET /api/test/investments
+ * Get all investments from database
+ */
+test.get('/investments', async (c) => {
+  try {
+    const result = await c.env.DB.prepare(`
+      SELECT * FROM investments
+      ORDER BY name
+    `).all();
+
+    return c.json<ApiResponse>({
+      success: true,
+      data: result.results,
+    });
+
+  } catch (error) {
+    console.error('Error fetching investments:', error);
+    return c.json<ApiResponse>({
+      success: false,
+      error: 'Failed to fetch investments',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    }, 500);
+  }
+});
+
 export default test;

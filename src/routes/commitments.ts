@@ -14,9 +14,12 @@ import {
   updateCommitmentProgress,
   getCommitmentAlerts,
   getCommitmentSummary,
+  detectInvestmentPhase,
+  updateInvestmentPhase,
   type Commitment,
   type CommitmentAlert,
   type CommitmentSummary,
+  type PhaseDetectionResult,
 } from '../services/commitment-tracker';
 
 const commitments = new Hono<{ Bindings: Env }>();
@@ -304,6 +307,86 @@ commitments.post('/investments/:id/commitments/update-progress', async (c) => {
     return c.json<ApiResponse>({
       success: false,
       error: 'Failed to update commitment progress',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    }, 500);
+  }
+});
+
+/**
+ * POST /api/investments/:id/detect-phase
+ * Detect and update investment phase based on transaction patterns
+ */
+commitments.post('/investments/:id/detect-phase', async (c) => {
+  try {
+    const investment_id = parseInt(c.req.param('id'), 10);
+
+    if (isNaN(investment_id)) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Invalid investment ID',
+      }, 400);
+    }
+
+    const detection = await updateInvestmentPhase(c.env.DB, investment_id);
+
+    if (!detection) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'No transaction data available for phase detection',
+        message: 'Investment needs at least one transaction in the last 24 months',
+      }, 404);
+    }
+
+    return c.json<ApiResponse<PhaseDetectionResult>>({
+      success: true,
+      message: `Investment phase detected as: ${detection.phase}`,
+      data: detection,
+    });
+
+  } catch (error) {
+    console.error('Error detecting investment phase:', error);
+    return c.json<ApiResponse>({
+      success: false,
+      error: 'Failed to detect investment phase',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    }, 500);
+  }
+});
+
+/**
+ * GET /api/investments/:id/phase
+ * Get current phase detection analysis for an investment
+ */
+commitments.get('/investments/:id/phase', async (c) => {
+  try {
+    const investment_id = parseInt(c.req.param('id'), 10);
+
+    if (isNaN(investment_id)) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Invalid investment ID',
+      }, 400);
+    }
+
+    const detection = await detectInvestmentPhase(c.env.DB, investment_id);
+
+    if (!detection) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'No transaction data available for phase detection',
+      }, 404);
+    }
+
+    return c.json<ApiResponse<PhaseDetectionResult>>({
+      success: true,
+      data: detection,
+    });
+
+  } catch (error) {
+    console.error('Error detecting investment phase:', error);
+    return c.json<ApiResponse>({
+      success: false,
+      error: 'Failed to detect investment phase',
       message: error instanceof Error ? error.message : 'Unknown error',
     }, 500);
   }
