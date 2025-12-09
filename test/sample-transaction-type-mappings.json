@@ -1,0 +1,20 @@
+[
+  {
+    "raw_value": "הפקדה",
+    "category": "capital_call",
+    "directionality_rule": "invert",
+    "cash_flow_impact": -1
+  },
+  {
+    "raw_value": "משיכה",
+    "category": "distribution",
+    "directionality_rule": "as_is",
+    "cash_flow_impact": 1
+  },
+  {
+    "raw_value": "משיכת תשואה",
+    "category": "distribution",
+    "directionality_rule": "as_is",
+    "cash_flow_impact": 1
+  }
+]

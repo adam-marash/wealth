@@ -225,4 +225,222 @@ configure.get('/status', async (c) => {
   }
 });
 
+/**
+ * POST /api/configure/transaction-types
+ * Step 2: Extract unique transaction types from Excel file for classification
+ *
+ * Body: multipart/form-data with 'file' field
+ * Returns: Unique transaction type values from the transaction_type column
+ */
+configure.post('/transaction-types', async (c) => {
+  try {
+    // Get the uploaded file
+    const formData = await c.req.formData();
+    const file = formData.get('file');
+
+    if (!file || !(file instanceof File)) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'No file uploaded',
+        message: 'Please provide an Excel file in the "file" field',
+      }, 400);
+    }
+
+    // Parse the Excel file
+    const arrayBuffer = await file.arrayBuffer();
+    const result = parseExcelFile(arrayBuffer);
+
+    if (!result.selectedSheet) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'No sheet found',
+        message: 'Could not find any sheet in the workbook',
+      }, 400);
+    }
+
+    // Get column mappings to find which column is transaction_type
+    const mappings = await c.env.DB.prepare(`
+      SELECT excel_column_letter, mapped_field
+      FROM column_mappings
+      WHERE active = 1 AND mapped_field = 'transaction_type'
+    `).first<{ excel_column_letter: string; mapped_field: string }>();
+
+    if (!mappings) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Transaction type column not mapped',
+        message: 'Please configure column mappings first (POST /api/configure/save-mappings)',
+      }, 400);
+    }
+
+    // Find the column with transaction types
+    const transactionTypeColumn = result.selectedSheet.columns.find(
+      col => col.letter === mappings.excel_column_letter
+    );
+
+    if (!transactionTypeColumn) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Transaction type column not found',
+        message: `Column ${mappings.excel_column_letter} not found in Excel file`,
+      }, 400);
+    }
+
+    // Convert to full data to extract all unique values (not just samples)
+    const arrayBuffer2 = await file.arrayBuffer();
+    const XLSX = await import('xlsx');
+    const workbook = XLSX.read(arrayBuffer2, { type: 'array' });
+    const worksheet = workbook.Sheets[workbook.SheetNames[0]!];
+    const data = XLSX.utils.sheet_to_json<unknown[]>(worksheet, {
+      header: 1,
+      defval: null,
+      blankrows: false,
+      raw: false,
+    });
+
+    // Find column index
+    const colIndex = XLSX.utils.decode_col(mappings.excel_column_letter);
+
+    // Extract unique values (skip header row)
+    const uniqueTypes = new Set<string>();
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i] as (string | number | null)[];
+      const value = row[colIndex];
+      if (value !== null && value !== undefined && value !== '') {
+        uniqueTypes.add(String(value).trim());
+      }
+    }
+
+    return c.json<ApiResponse<{ uniqueTypes: string[] }>>({
+      success: true,
+      message: `Found ${uniqueTypes.size} unique transaction types`,
+      data: {
+        uniqueTypes: Array.from(uniqueTypes).sort(),
+      },
+    });
+
+  } catch (error) {
+    console.error('Error extracting transaction types:', error);
+    return c.json<ApiResponse>({
+      success: false,
+      error: 'Failed to extract transaction types',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    }, 500);
+  }
+});
+
+/**
+ * POST /api/configure/save-transaction-type-mappings
+ * Step 3: Save transaction type mappings (classification rules)
+ *
+ * Body: JSON array of transaction type mappings
+ * [
+ *   {
+ *     raw_value: "משיכת תשואה",
+ *     category: "distribution",
+ *     directionality_rule: "as_is",
+ *     cash_flow_impact: 1
+ *   }
+ * ]
+ */
+configure.post('/save-transaction-type-mappings', async (c) => {
+  try {
+    const mappings = await c.req.json<Array<{
+      raw_value: string;
+      category: string;
+      directionality_rule: string;
+      cash_flow_impact: number | null;
+    }>>();
+
+    if (!Array.isArray(mappings) || mappings.length === 0) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Invalid input',
+        message: 'Mappings must be a non-empty array',
+      }, 400);
+    }
+
+    // Delete existing mappings for these raw values
+    const rawValues = mappings.map(m => m.raw_value);
+    const placeholders = rawValues.map(() => '?').join(',');
+    await c.env.DB.prepare(
+      `DELETE FROM transaction_type_mappings WHERE raw_value IN (${placeholders})`
+    ).bind(...rawValues).run();
+
+    // Insert new mappings
+    const insertStmt = c.env.DB.prepare(`
+      INSERT INTO transaction_type_mappings (
+        raw_value,
+        category,
+        directionality_rule,
+        cash_flow_impact
+      ) VALUES (?, ?, ?, ?)
+    `);
+
+    const batch = mappings.map(mapping =>
+      insertStmt.bind(
+        mapping.raw_value,
+        mapping.category,
+        mapping.directionality_rule,
+        mapping.cash_flow_impact
+      )
+    );
+
+    await c.env.DB.batch(batch);
+
+    return c.json<ApiResponse>({
+      success: true,
+      message: `Successfully saved ${mappings.length} transaction type mappings`,
+    });
+
+  } catch (error) {
+    console.error('Error saving transaction type mappings:', error);
+    return c.json<ApiResponse>({
+      success: false,
+      error: 'Failed to save transaction type mappings',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    }, 500);
+  }
+});
+
+/**
+ * GET /api/configure/transaction-type-mappings
+ * Get all transaction type mappings
+ */
+configure.get('/transaction-type-mappings', async (c) => {
+  try {
+    const result = await c.env.DB.prepare(`
+      SELECT
+        raw_value,
+        category,
+        directionality_rule,
+        cash_flow_impact,
+        created_at,
+        updated_at
+      FROM transaction_type_mappings
+      ORDER BY raw_value ASC
+    `).all<{
+      raw_value: string;
+      category: string;
+      directionality_rule: string;
+      cash_flow_impact: number | null;
+      created_at: string;
+      updated_at: string;
+    }>();
+
+    return c.json<ApiResponse>({
+      success: true,
+      data: result.results || [],
+    });
+
+  } catch (error) {
+    console.error('Error fetching transaction type mappings:', error);
+    return c.json<ApiResponse>({
+      success: false,
+      error: 'Failed to fetch transaction type mappings',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    }, 500);
+  }
+});
+
 export default configure;
