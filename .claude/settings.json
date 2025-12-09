@@ -8,6 +8,10 @@
           "description": "GitHub issue operations (create, close, comment, view, etc)"
         },
         {
+          "command": "gh issue view *",
+          "description": "View GitHub issues"
+        },
+        {
           "command": "npm *",
           "description": "Run npm commands (install, run, etc)"
         },

@@ -11,6 +11,7 @@ import {
   type ParseExcelResult,
 } from '../services/excel-parser';
 import { previewTransactions, type PreviewResult } from '../services/preview';
+import { importTransactions, type ImportTransaction, type ImportSummary, type ImportOptions } from '../services/import';
 
 const upload = new Hono<{ Bindings: Env }>();
 
@@ -152,6 +153,60 @@ upload.post('/preview', async (c) => {
 });
 
 /**
+ * POST /api/upload/commit
+ * Commit transactions to database
+ *
+ * Body: JSON array of transactions to import
+ * {
+ *   transactions: ImportTransaction[],
+ *   options?: {
+ *     source_file?: string,
+ *     skip_duplicates?: boolean,
+ *     force_import?: boolean
+ *   }
+ * }
+ */
+upload.post('/commit', async (c) => {
+  try {
+    const body = await c.req.json<{
+      transactions: ImportTransaction[];
+      options?: ImportOptions;
+    }>();
+
+    const { transactions, options = {} } = body;
+
+    if (!Array.isArray(transactions) || transactions.length === 0) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Invalid input',
+        message: 'Transactions must be a non-empty array',
+      }, 400);
+    }
+
+    // Import transactions
+    const summary: ImportSummary = await importTransactions(
+      c.env.DB,
+      transactions,
+      options
+    );
+
+    return c.json<ApiResponse<ImportSummary>>({
+      success: true,
+      message: `Import complete: ${summary.imported} imported, ${summary.skipped} skipped, ${summary.failed} failed`,
+      data: summary,
+    });
+
+  } catch (error) {
+    console.error('Error importing transactions:', error);
+    return c.json<ApiResponse>({
+      success: false,
+      error: 'Failed to import transactions',
+      message: error instanceof Error ? error.message : 'Unknown error occurred',
+    }, 500);
+  }
+});
+
+/**
  * GET /api/upload/test
  * Test endpoint to verify upload route is working
  */
@@ -163,6 +218,7 @@ upload.get('/test', (c) => {
       availableEndpoints: [
         'POST /api/upload/parse-excel - Parse Excel file and extract columns',
         'POST /api/upload/preview - Preview transactions with normalization and dedup',
+        'POST /api/upload/commit - Commit transactions to database',
       ],
     },
   });
