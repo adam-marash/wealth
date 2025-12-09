@@ -443,4 +443,215 @@ configure.get('/transaction-type-mappings', async (c) => {
   }
 });
 
+/**
+ * POST /api/configure/investments
+ * Step 3: Extract unique investment names from Excel file
+ *
+ * Body: multipart/form-data with 'file' field
+ * Returns: Unique investment names from the investment_name column
+ */
+configure.post('/investments', async (c) => {
+  try {
+    // Get the uploaded file
+    const formData = await c.req.formData();
+    const file = formData.get('file');
+
+    if (!file || !(file instanceof File)) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'No file uploaded',
+        message: 'Please provide an Excel file in the "file" field',
+      }, 400);
+    }
+
+    // Get column mappings to find which column is investment_name
+    const mappings = await c.env.DB.prepare(`
+      SELECT excel_column_letter, mapped_field
+      FROM column_mappings
+      WHERE active = 1 AND mapped_field = 'investment_name'
+    `).first<{ excel_column_letter: string; mapped_field: string }>();
+
+    if (!mappings) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Investment name column not mapped',
+        message: 'Please configure column mappings first (POST /api/configure/save-mappings)',
+      }, 400);
+    }
+
+    // Parse Excel file to extract all unique investment names
+    const arrayBuffer = await file.arrayBuffer();
+    const XLSX = await import('xlsx');
+    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+    const worksheet = workbook.Sheets[workbook.SheetNames[0]!];
+    const data = XLSX.utils.sheet_to_json<unknown[]>(worksheet, {
+      header: 1,
+      defval: null,
+      blankrows: false,
+      raw: false,
+    });
+
+    // Find column index
+    const colIndex = XLSX.utils.decode_col(mappings.excel_column_letter);
+
+    // Extract unique values (skip header row)
+    const uniqueInvestments = new Set<string>();
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i] as (string | number | null)[];
+      const value = row[colIndex];
+      if (value !== null && value !== undefined && value !== '') {
+        uniqueInvestments.add(String(value).trim());
+      }
+    }
+
+    return c.json<ApiResponse<{ uniqueInvestments: string[] }>>({
+      success: true,
+      message: `Found ${uniqueInvestments.size} unique investments`,
+      data: {
+        uniqueInvestments: Array.from(uniqueInvestments).sort(),
+      },
+    });
+
+  } catch (error) {
+    console.error('Error extracting investments:', error);
+    return c.json<ApiResponse>({
+      success: false,
+      error: 'Failed to extract investments',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    }, 500);
+  }
+});
+
+/**
+ * POST /api/configure/save-investments
+ * Step 4: Save investments with optional grouping
+ *
+ * Body: JSON array of investments
+ * [
+ *   {
+ *     name: "Faro-Point FRG-X",
+ *     investment_group: "Real Estate",
+ *     investment_type: "Real Estate",
+ *     status: "active"
+ *   }
+ * ]
+ */
+configure.post('/save-investments', async (c) => {
+  try {
+    const investments = await c.req.json<Array<{
+      name: string;
+      investment_group?: string;
+      investment_type?: string;
+      initial_commitment?: number;
+      committed_currency?: string;
+      commitment_date?: string;
+      status?: string;
+    }>>();
+
+    if (!Array.isArray(investments) || investments.length === 0) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Invalid input',
+        message: 'Investments must be a non-empty array',
+      }, 400);
+    }
+
+    // Insert or update investments
+    const insertStmt = c.env.DB.prepare(`
+      INSERT INTO investments (
+        name,
+        investment_group,
+        investment_type,
+        initial_commitment,
+        committed_currency,
+        commitment_date,
+        status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(name) DO UPDATE SET
+        investment_group = excluded.investment_group,
+        investment_type = excluded.investment_type,
+        initial_commitment = excluded.initial_commitment,
+        committed_currency = excluded.committed_currency,
+        commitment_date = excluded.commitment_date,
+        status = excluded.status,
+        updated_at = datetime('now')
+    `);
+
+    const batch = investments.map(inv =>
+      insertStmt.bind(
+        inv.name,
+        inv.investment_group || null,
+        inv.investment_type || null,
+        inv.initial_commitment || null,
+        inv.committed_currency || null,
+        inv.commitment_date || null,
+        inv.status || 'active'
+      )
+    );
+
+    await c.env.DB.batch(batch);
+
+    return c.json<ApiResponse>({
+      success: true,
+      message: `Successfully saved ${investments.length} investments`,
+    });
+
+  } catch (error) {
+    console.error('Error saving investments:', error);
+    return c.json<ApiResponse>({
+      success: false,
+      error: 'Failed to save investments',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    }, 500);
+  }
+});
+
+/**
+ * GET /api/configure/investments-list
+ * Get all investments
+ */
+configure.get('/investments-list', async (c) => {
+  try {
+    const result = await c.env.DB.prepare(`
+      SELECT
+        id,
+        name,
+        investment_group,
+        investment_type,
+        initial_commitment,
+        committed_currency,
+        commitment_date,
+        status,
+        created_at,
+        updated_at
+      FROM investments
+      ORDER BY name ASC
+    `).all<{
+      id: number;
+      name: string;
+      investment_group: string | null;
+      investment_type: string | null;
+      initial_commitment: number | null;
+      committed_currency: string | null;
+      commitment_date: string | null;
+      status: string;
+      created_at: string;
+      updated_at: string;
+    }>();
+
+    return c.json<ApiResponse>({
+      success: true,
+      data: result.results || [],
+    });
+
+  } catch (error) {
+    console.error('Error fetching investments:', error);
+    return c.json<ApiResponse>({
+      success: false,
+      error: 'Failed to fetch investments',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    }, 500);
+  }
+});
+
 export default configure;

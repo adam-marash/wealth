@@ -8,7 +8,7 @@
 -- Investments: Individual investment entities
 CREATE TABLE IF NOT EXISTS investments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
+    name TEXT NOT NULL UNIQUE,  -- UNIQUE constraint for upsert support
     investment_group TEXT,  -- For rolling up related investments
     investment_type TEXT,   -- PE, VC, Real Estate, Public Equity, etc
     initial_commitment REAL,
