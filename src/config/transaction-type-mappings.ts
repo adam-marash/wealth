@@ -35,7 +35,7 @@ export const transactionTypeMappings: TransactionTypeMapping[] = [
     slug: 'deposit',
     display: 'Deposit',
     category: 'contribution',
-    directionality: 'as_is',
+    directionality: 'always_negative',
   },
   {
     hebrew: 'החזר הון',
