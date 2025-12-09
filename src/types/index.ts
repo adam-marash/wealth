@@ -14,6 +14,8 @@ export * from './report';
 export interface Env {
   DB: D1Database;
   ENVIRONMENT: string;
+  EXCHANGE_RATES_API_KEY?: string;
+  FIXER_API_KEY?: string;
 }
 
 /**

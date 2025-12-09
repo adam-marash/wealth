@@ -6,6 +6,13 @@
 import { Hono } from 'hono';
 import type { Env, ApiResponse, ColumnMapping, CreateColumnMappingInput, ExcelColumn } from '../types';
 import { parseExcelFile } from '../services/excel-parser';
+import {
+  getExchangeRate,
+  batchFetchExchangeRates,
+  setManualExchangeRate,
+  getExchangeRatesForDate,
+  currencySymbolToCode,
+} from '../services/exchange-rate';
 
 const configure = new Hono<{ Bindings: Env }>();
 
@@ -649,6 +656,227 @@ configure.get('/investments-list', async (c) => {
     return c.json<ApiResponse>({
       success: false,
       error: 'Failed to fetch investments',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    }, 500);
+  }
+});
+
+/**
+ * POST /api/configure/exchange-rates/fetch
+ * Fetch exchange rate for a specific date and currency
+ *
+ * Body: { date: "2024-01-15", fromCurrency: "EUR", toCurrency: "USD" }
+ * Returns: Exchange rate (cached if available, fetched from API if not)
+ */
+configure.post('/exchange-rates/fetch', async (c) => {
+  try {
+    const { date, fromCurrency, toCurrency = 'USD' } = await c.req.json<{
+      date: string;
+      fromCurrency: string;
+      toCurrency?: string;
+    }>();
+
+    if (!date || !fromCurrency) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Missing required fields',
+        message: 'date and fromCurrency are required',
+      }, 400);
+    }
+
+    // Validate date format (basic check for YYYY-MM-DD)
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Invalid date format',
+        message: 'Date must be in ISO 8601 format (YYYY-MM-DD)',
+      }, 400);
+    }
+
+    const rate = await getExchangeRate(c.env.DB, date, fromCurrency, toCurrency, c.env);
+
+    if (rate === null) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Exchange rate not available',
+        message: `Could not fetch exchange rate for ${fromCurrency}→${toCurrency} on ${date}`,
+      }, 404);
+    }
+
+    return c.json<ApiResponse<{ rate: number; date: string; from: string; to: string }>>({
+      success: true,
+      data: {
+        rate,
+        date,
+        from: currencySymbolToCode(fromCurrency),
+        to: currencySymbolToCode(toCurrency),
+      },
+    });
+
+  } catch (error) {
+    console.error('Error fetching exchange rate:', error);
+    return c.json<ApiResponse>({
+      success: false,
+      error: 'Failed to fetch exchange rate',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    }, 500);
+  }
+});
+
+/**
+ * POST /api/configure/exchange-rates/batch
+ * Pre-fetch exchange rates for multiple dates and currencies
+ * Useful before transaction import to cache all needed rates
+ *
+ * Body: { dates: ["2024-01-15", "2024-01-16"], currencies: ["EUR", "$", "€"] }
+ * Returns: Summary of fetched, cached, and failed rates
+ */
+configure.post('/exchange-rates/batch', async (c) => {
+  try {
+    const { dates, currencies } = await c.req.json<{
+      dates: string[];
+      currencies: string[];
+    }>();
+
+    if (!Array.isArray(dates) || !Array.isArray(currencies)) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Invalid input',
+        message: 'dates and currencies must be arrays',
+      }, 400);
+    }
+
+    if (dates.length === 0 || currencies.length === 0) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Empty input',
+        message: 'dates and currencies arrays cannot be empty',
+      }, 400);
+    }
+
+    // Validate all dates
+    for (const date of dates) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return c.json<ApiResponse>({
+          success: false,
+          error: 'Invalid date format',
+          message: `Date "${date}" is not in ISO 8601 format (YYYY-MM-DD)`,
+        }, 400);
+      }
+    }
+
+    const result = await batchFetchExchangeRates(c.env.DB, dates, currencies, c.env);
+
+    return c.json<ApiResponse<{ fetched: number; cached: number; failed: number }>>({
+      success: true,
+      message: `Processed ${result.fetched + result.cached + result.failed} rate requests`,
+      data: result,
+    });
+
+  } catch (error) {
+    console.error('Error batch fetching exchange rates:', error);
+    return c.json<ApiResponse>({
+      success: false,
+      error: 'Failed to batch fetch exchange rates',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    }, 500);
+  }
+});
+
+/**
+ * POST /api/configure/exchange-rates/manual
+ * Set manual exchange rate override
+ *
+ * Body: { date: "2024-01-15", fromCurrency: "EUR", toCurrency: "USD", rate: 1.09 }
+ * Returns: Success confirmation
+ */
+configure.post('/exchange-rates/manual', async (c) => {
+  try {
+    const { date, fromCurrency, toCurrency, rate } = await c.req.json<{
+      date: string;
+      fromCurrency: string;
+      toCurrency: string;
+      rate: number;
+    }>();
+
+    if (!date || !fromCurrency || !toCurrency || rate === undefined) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Missing required fields',
+        message: 'date, fromCurrency, toCurrency, and rate are required',
+      }, 400);
+    }
+
+    // Validate date format
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Invalid date format',
+        message: 'Date must be in ISO 8601 format (YYYY-MM-DD)',
+      }, 400);
+    }
+
+    // Validate rate is positive
+    if (typeof rate !== 'number' || rate <= 0) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Invalid rate',
+        message: 'Rate must be a positive number',
+      }, 400);
+    }
+
+    await setManualExchangeRate(c.env.DB, date, fromCurrency, toCurrency, rate);
+
+    return c.json<ApiResponse>({
+      success: true,
+      message: `Manual exchange rate set: ${fromCurrency}→${toCurrency} = ${rate} on ${date}`,
+    });
+
+  } catch (error) {
+    console.error('Error setting manual exchange rate:', error);
+    return c.json<ApiResponse>({
+      success: false,
+      error: 'Failed to set manual exchange rate',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    }, 500);
+  }
+});
+
+/**
+ * GET /api/configure/exchange-rates/:date
+ * Get all cached exchange rates for a specific date
+ *
+ * Params: date (YYYY-MM-DD)
+ * Returns: Array of exchange rates for that date
+ */
+configure.get('/exchange-rates/:date', async (c) => {
+  try {
+    const date = c.req.param('date');
+
+    // Validate date format
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Invalid date format',
+        message: 'Date must be in ISO 8601 format (YYYY-MM-DD)',
+      }, 400);
+    }
+
+    const rates = await getExchangeRatesForDate(c.env.DB, date);
+
+    return c.json<ApiResponse>({
+      success: true,
+      data: rates,
+      message: rates.length > 0
+        ? `Found ${rates.length} cached rates for ${date}`
+        : `No cached rates found for ${date}`,
+    });
+
+  } catch (error) {
+    console.error('Error fetching exchange rates for date:', error);
+    return c.json<ApiResponse>({
+      success: false,
+      error: 'Failed to fetch exchange rates',
       message: error instanceof Error ? error.message : 'Unknown error',
     }, 500);
   }

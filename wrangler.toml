@@ -9,3 +9,5 @@ database_id = "ebf992cb-5dbf-4ba6-9622-b5fbc15bdc57"
 
 [vars]
 ENVIRONMENT = "development"
+EXCHANGE_RATES_API_KEY = "30ff60b8dbed2e3ca688585f70b59d63"
+FIXER_API_KEY = "902b524ce18a4eb70a6230936054dd1a"
