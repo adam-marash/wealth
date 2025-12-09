@@ -1,0 +1,11 @@
+name = "wealth-management"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "transactions_db"
+database_id = "ebf992cb-5dbf-4ba6-9622-b5fbc15bdc57"
+
+[vars]
+ENVIRONMENT = "development"
