@@ -62,32 +62,10 @@ app.get('/api/health', async (c) => {
 // API ROUTES (to be implemented)
 // ============================================================================
 
-// Root endpoint
+// Root endpoint - serve dashboard HTML
+import { dashboardHTML } from './dashboardHTML';
 app.get('/', (c) => {
-  return c.json({
-    success: true,
-    message: 'Wealth Management API',
-    version: '1.0.0',
-    endpoints: {
-      health: '/api/health',
-      upload: '/api/upload/parse-excel',
-      configure: {
-        columns: 'POST /api/configure/columns',
-        saveMappings: 'POST /api/configure/save-mappings',
-        getMappings: 'GET /api/configure/mappings',
-        transactionTypes: 'POST /api/configure/transaction-types',
-        saveTransactionTypeMappings: 'POST /api/configure/save-transaction-type-mappings',
-        getTransactionTypeMappings: 'GET /api/configure/transaction-type-mappings',
-        investments: 'POST /api/configure/investments',
-        saveInvestments: 'POST /api/configure/save-investments',
-        getInvestmentsList: 'GET /api/configure/investments-list',
-        status: 'GET /api/configure/status',
-      },
-      reports: '/api/reports (coming soon)',
-      investments: '/api/investments (coming soon)',
-      settings: '/api/settings (coming soon)',
-    },
-  });
+  return c.html(dashboardHTML);
 });
 
 // Import routes

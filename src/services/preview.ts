@@ -4,7 +4,7 @@
  */
 
 import type { Env } from '../types';
-import { parseExcelData } from './excel-parser';
+import { parseCSVData } from './csv-parser';
 import { normalizeTransactionRow, type TransactionRow, type NormalizedTransaction } from './normalize';
 import { checkDeduplication, type DedupResult } from './deduplication';
 
@@ -208,11 +208,11 @@ function determineStatus(
 }
 
 /**
- * Preview transactions from Excel file
+ * Preview transactions from CSV file
  *
  * @param db D1 database instance
- * @param arrayBuffer Excel file as ArrayBuffer
- * @param sheetIndex Optional sheet index
+ * @param arrayBuffer CSV file as ArrayBuffer
+ * @param sheetIndex Unused (kept for backwards compatibility)
  * @param env Environment (for exchange rates)
  * @returns Preview result with summary and transaction details
  */
@@ -229,8 +229,8 @@ export async function previewTransactions(
     throw new Error('No active column mappings found. Please configure column mappings first.');
   }
 
-  // Parse Excel file to extract full row data
-  const sheet = parseExcelData(arrayBuffer, sheetIndex);
+  // Parse CSV file to extract full row data
+  const sheet = parseCSVData(arrayBuffer);
 
   // Get date format from mappings
   const dateMapping = mappings.find(m => m.mapped_field === 'date');

@@ -5,9 +5,27 @@
  */
 
 /**
+ * Transliterate Hebrew characters to English (Latin) equivalents
+ * @param text Text containing Hebrew characters
+ * @returns Text with Hebrew characters converted to Latin
+ */
+function transliterateHebrew(text: string): string {
+  const hebrewToLatin: Record<string, string> = {
+    'א': 'a', 'ב': 'b', 'ג': 'g', 'ד': 'd', 'ה': 'h', 'ו': 'v',
+    'ז': 'z', 'ח': 'h', 'ט': 't', 'י': 'y', 'כ': 'k', 'ך': 'k',
+    'ל': 'l', 'מ': 'm', 'ם': 'm', 'נ': 'n', 'ן': 'n', 'ס': 's',
+    'ע': '', 'פ': 'p', 'ף': 'p', 'צ': 'ts', 'ץ': 'ts', 'ק': 'k',
+    'ר': 'r', 'ש': 'sh', 'ת': 't'
+  };
+
+  return text.split('').map(char => hebrewToLatin[char] || char).join('');
+}
+
+/**
  * Generate a URL-safe slug from an investment name
  *
  * Rules:
+ * - Transliterate Hebrew to Latin characters
  * - Convert to lowercase
  * - Remove non-alphanumeric characters (except spaces and hyphens)
  * - Replace spaces with hyphens
@@ -16,7 +34,7 @@
  *
  * Examples:
  * - "Faro-Point FRG-X" → "faro-point-frg-x"
- * - "פארופוינט FRG-X" → "frg-x" (Hebrew removed, only alphanumeric kept)
+ * - "אימפקט חוב" → "aympkt-hvb" (Hebrew transliterated)
  * - "Migdal Insurance" → "migdal-insurance"
  * - "IBI  " → "ibi" (whitespace trimmed)
  *
@@ -24,7 +42,7 @@
  * @returns URL-safe slug
  */
 export function generateSlug(name: string): string {
-  return name
+  return transliterateHebrew(name)
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, '') // Remove non-alphanumeric (keeps spaces and hyphens)

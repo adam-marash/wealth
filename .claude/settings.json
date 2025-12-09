@@ -41,7 +41,7 @@
         },
         {
           "command": "node *",
-          "description": "Run Node.js scripts (test scripts, data analysis, etc)"
+          "description": "Run Node.js scripts and inline code (node -e, test scripts, data analysis, etc)"
         },
         {
           "command": "cat *",

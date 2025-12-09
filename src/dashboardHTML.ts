@@ -376,12 +376,12 @@ export const dashboardHTML = `<!DOCTYPE html>
             <p>Portfolio overview and recent activity</p>
           </div>
           <div className="dashboard-grid">
-            <MetricCard title="Total Called" value={formatCurrency(overview.total_called_usd)}
+            <MetricCard title="Total Called" value={formatCurrency(overview.total_called)}
               subtitle={overview.total_investments + ' investments'} />
-            <MetricCard title="Total Distributed" value={formatCurrency(overview.total_distributed_usd)}
+            <MetricCard title="Total Distributed" value={formatCurrency(overview.total_distributed)}
               subtitle={overview.total_transactions + ' transactions'} type="positive" />
-            <MetricCard title="Net Position" value={formatCurrency(overview.net_position_usd)}
-              subtitle="Called - Distributed" type={overview.net_position_usd >= 0 ? 'negative' : 'positive'} />
+            <MetricCard title="Net Position" value={formatCurrency(overview.net_position)}
+              subtitle="Called - Distributed" type={overview.net_position >= 0 ? 'negative' : 'positive'} />
             <MetricCard title="Active Investments" value={overview.active_investments} />
           </div>
           <div className="widget">
@@ -405,7 +405,7 @@ export const dashboardHTML = `<!DOCTYPE html>
                     <td><span className={'badge ' + tx.transaction_category}>{tx.transaction_category.replace('_', ' ')}</span></td>
                     <td style={{textAlign:'right'}}>
                       <span className={'amount ' + (tx.cash_flow_direction === 'inflow' ? 'positive' : 'negative')}>
-                        {tx.cash_flow_direction === 'outflow' ? '-' : ''}{formatCurrency(tx.amount_usd)}
+                        {tx.cash_flow_direction === 'outflow' ? '-' : ''}{formatCurrency(tx.amount_original)} {tx.original_currency}
                       </span>
                     </td>
                   </tr>

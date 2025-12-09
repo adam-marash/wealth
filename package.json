@@ -22,13 +22,14 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "date-fns": "^3.0.0",
     "hono": "^4.0.0",
-    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.1/xlsx-0.20.1.tgz",
-    "date-fns": "^3.0.0"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.1/xlsx-0.20.1.tgz"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241127.0",
     "@types/node": "^20.11.0",
+    "form-data": "^4.0.5",
     "typescript": "^5.3.3",
     "wrangler": "^4.50.0"
   }

@@ -232,7 +232,7 @@ export async function importTransactions(
         ON CONFLICT(dedup_hash) DO NOTHING
       `;
 
-      await db.prepare(insertQuery).bind(
+      const insertResult = await db.prepare(insertQuery).bind(
         txData.date,
         txData.transactionType,
         typeMapping.category,
@@ -249,7 +249,12 @@ export async function importTransactions(
         sourceFile
       ).run();
 
-      result.imported++;
+      // Check if row was actually inserted (changes > 0) or skipped due to duplicate
+      if (insertResult.meta.changes > 0) {
+        result.imported++;
+      } else {
+        result.skipped++;
+      }
     } catch (error: any) {
       console.error(`[Transaction Import] Error importing row ${rowIndex}:`, error);
       result.errors.push({

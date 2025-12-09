@@ -7,7 +7,7 @@ export interface TransactionTypeMapping {
   hebrew: string;
   slug: string;
   display: string;
-  category?: 'distribution' | 'contribution' | 'call' | 'transfer' | 'fee' | 'other';
+  category?: 'income_distribution' | 'capital_distribution' | 'contribution' | 'fee' | 'valuation' | 'other';
   directionality?: 'as_is' | 'always_positive' | 'always_negative';
 }
 
@@ -18,16 +18,16 @@ export interface TransactionTypeMapping {
 export const transactionTypeMappings: TransactionTypeMapping[] = [
   {
     hebrew: 'משיכת תשואה',
-    slug: 'distribution',
-    display: 'Distribution',
-    category: 'distribution',
+    slug: 'income-distribution',
+    display: 'Income Distribution',
+    category: 'income_distribution',
     directionality: 'as_is',
   },
   {
     hebrew: 'משיכה',
     slug: 'withdrawal',
     display: 'Withdrawal',
-    category: 'distribution',
+    category: 'income_distribution',
     directionality: 'as_is',
   },
   {
@@ -38,25 +38,11 @@ export const transactionTypeMappings: TransactionTypeMapping[] = [
     directionality: 'as_is',
   },
   {
-    hebrew: 'קריאת הון',
-    slug: 'capital-call',
-    display: 'Capital Call',
-    category: 'call',
-    directionality: 'always_negative',
-  },
-  {
     hebrew: 'החזר הון',
     slug: 'capital-return',
     display: 'Capital Return',
-    category: 'distribution',
+    category: 'capital_distribution',
     directionality: 'always_positive',
-  },
-  {
-    hebrew: 'העברה',
-    slug: 'transfer',
-    display: 'Transfer',
-    category: 'transfer',
-    directionality: 'as_is',
   },
   {
     hebrew: 'דמי ניהול',
@@ -64,6 +50,13 @@ export const transactionTypeMappings: TransactionTypeMapping[] = [
     display: 'Management Fee',
     category: 'fee',
     directionality: 'always_negative',
+  },
+  {
+    hebrew: 'שינוי שווי שוק',
+    slug: 'unrealized-gain-loss',
+    display: 'Unrealized Gain/Loss',
+    category: 'valuation',
+    directionality: 'as_is',
   },
 ];
 

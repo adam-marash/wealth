@@ -134,10 +134,10 @@ reports.get('/portfolio-position', async (c) => {
         i.investment_type,
         i.investment_group,
         i.status,
-        COALESCE(SUM(CASE WHEN t.transaction_category = 'capital_call' THEN ABS(t.amount_normalized) ELSE 0 END), 0) as total_called,
-        COALESCE(SUM(CASE WHEN t.transaction_category = 'distribution' THEN ABS(t.amount_normalized) ELSE 0 END), 0) as total_distributed,
-        COALESCE(SUM(CASE WHEN t.transaction_category = 'capital_call' THEN ABS(t.amount_usd) ELSE 0 END), 0) as total_called_usd,
-        COALESCE(SUM(CASE WHEN t.transaction_category = 'distribution' THEN ABS(t.amount_usd) ELSE 0 END), 0) as total_distributed_usd,
+        COALESCE(SUM(CASE WHEN t.transaction_category = 'contribution' THEN ABS(t.amount_normalized) ELSE 0 END), 0) as total_called,
+        COALESCE(SUM(CASE WHEN t.transaction_category IN ('income_distribution', 'capital_distribution') THEN ABS(t.amount_normalized) ELSE 0 END), 0) as total_distributed,
+        COALESCE(SUM(CASE WHEN t.transaction_category = 'contribution' THEN ABS(t.amount_usd) ELSE 0 END), 0) as total_called_usd,
+        COALESCE(SUM(CASE WHEN t.transaction_category IN ('income_distribution', 'capital_distribution') THEN ABS(t.amount_usd) ELSE 0 END), 0) as total_distributed_usd,
         COUNT(t.id) as transaction_count,
         MIN(t.date) as first_transaction_date,
         MAX(t.date) as last_transaction_date
@@ -504,9 +504,9 @@ reports.get('/dashboard', async (c) => {
         COUNT(DISTINCT i.id) as total_investments,
         COUNT(DISTINCT CASE WHEN i.status = 'active' THEN i.id END) as active_investments,
         COUNT(t.id) as total_transactions,
-        COALESCE(SUM(CASE WHEN t.transaction_category = 'capital_call' THEN ABS(t.amount_usd) ELSE 0 END), 0) as total_called_usd,
-        COALESCE(SUM(CASE WHEN t.transaction_category = 'distribution' THEN ABS(t.amount_usd) ELSE 0 END), 0) as total_distributed_usd,
-        COALESCE(SUM(CASE WHEN t.transaction_category = 'fee' THEN ABS(t.amount_usd) ELSE 0 END), 0) as total_fees_usd
+        COALESCE(SUM(CASE WHEN t.transaction_category = 'contribution' THEN ABS(t.amount_original) ELSE 0 END), 0) as total_called,
+        COALESCE(SUM(CASE WHEN t.transaction_category IN ('income_distribution', 'capital_distribution') THEN ABS(t.amount_original) ELSE 0 END), 0) as total_distributed,
+        COALESCE(SUM(CASE WHEN t.transaction_category = 'fee' THEN ABS(t.amount_original) ELSE 0 END), 0) as total_fees
       FROM investments i
       LEFT JOIN transactions t ON i.id = t.investment_id
     `).first();
@@ -557,7 +557,7 @@ reports.get('/dashboard', async (c) => {
       data: {
         overview: {
           ...stats,
-          net_position_usd: (stats?.total_called_usd || 0) - (stats?.total_distributed_usd || 0),
+          net_position: (stats?.total_called || 0) - (stats?.total_distributed || 0),
         },
         commitments: commitmentStats,
         recent_transactions: recentTransactions.results,
@@ -590,10 +590,10 @@ reports.get('/equity-returns', async (c) => {
         i.investment_type,
         i.investment_group,
         i.status,
-        COALESCE(SUM(CASE WHEN t.transaction_category = 'capital_call' THEN ABS(t.amount_normalized) ELSE 0 END), 0) as total_called,
-        COALESCE(SUM(CASE WHEN t.transaction_category = 'distribution' THEN ABS(t.amount_normalized) ELSE 0 END), 0) as total_distributed,
-        COALESCE(SUM(CASE WHEN t.transaction_category = 'capital_call' THEN ABS(t.amount_usd) ELSE 0 END), 0) as total_called_usd,
-        COALESCE(SUM(CASE WHEN t.transaction_category = 'distribution' THEN ABS(t.amount_usd) ELSE 0 END), 0) as total_distributed_usd,
+        COALESCE(SUM(CASE WHEN t.transaction_category = 'contribution' THEN ABS(t.amount_normalized) ELSE 0 END), 0) as total_called,
+        COALESCE(SUM(CASE WHEN t.transaction_category IN ('income_distribution', 'capital_distribution') THEN ABS(t.amount_normalized) ELSE 0 END), 0) as total_distributed,
+        COALESCE(SUM(CASE WHEN t.transaction_category = 'contribution' THEN ABS(t.amount_usd) ELSE 0 END), 0) as total_called_usd,
+        COALESCE(SUM(CASE WHEN t.transaction_category IN ('income_distribution', 'capital_distribution') THEN ABS(t.amount_usd) ELSE 0 END), 0) as total_distributed_usd,
         COUNT(t.id) as transaction_count,
         MIN(t.date) as first_transaction_date,
         MAX(t.date) as last_transaction_date
