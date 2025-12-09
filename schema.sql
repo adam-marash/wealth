@@ -9,6 +9,7 @@
 CREATE TABLE IF NOT EXISTS investments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,  -- UNIQUE constraint for upsert support
+    slug TEXT,                  -- URL-friendly identifier for entity normalization
     investment_group TEXT,  -- For rolling up related investments
     investment_type TEXT,   -- PE, VC, Real Estate, Public Equity, etc
     product_type TEXT,      -- Product type from Excel (e.g., "אחזקה בחברת/שותפות נכס נדלן")
@@ -23,6 +24,16 @@ CREATE TABLE IF NOT EXISTS investments (
     phase TEXT,                     -- building_up, stable, drawing_down
     manual_phase INTEGER DEFAULT 0, -- Boolean flag for manual override
     commitment_notes TEXT,          -- Notes about commitment
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+);
+
+-- Investment Name Mappings: Maps raw investment names to canonical slugs
+-- Enables handling of spelling variations and multi-script names
+CREATE TABLE IF NOT EXISTS investment_name_mappings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    raw_name TEXT NOT NULL UNIQUE,
+    investment_slug TEXT NOT NULL,
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now'))
 );
@@ -122,6 +133,11 @@ CREATE INDEX IF NOT EXISTS idx_investments_status ON investments(status);
 CREATE INDEX IF NOT EXISTS idx_investments_type ON investments(investment_type);
 CREATE INDEX IF NOT EXISTS idx_investments_group ON investments(investment_group);
 CREATE INDEX IF NOT EXISTS idx_investments_phase ON investments(phase);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_investments_slug_unique ON investments(slug) WHERE slug IS NOT NULL;
+
+-- Investment name mappings indexes
+CREATE INDEX IF NOT EXISTS idx_name_mappings_raw_name ON investment_name_mappings(raw_name);
+CREATE INDEX IF NOT EXISTS idx_name_mappings_slug ON investment_name_mappings(investment_slug);
 
 -- Column mappings index
 CREATE INDEX IF NOT EXISTS idx_column_mappings_active ON column_mappings(active);
@@ -160,6 +176,12 @@ CREATE TRIGGER IF NOT EXISTS update_counterparty_normalizations_timestamp
 AFTER UPDATE ON counterparty_normalizations
 BEGIN
     UPDATE counterparty_normalizations SET updated_at = datetime('now') WHERE raw_name = NEW.raw_name;
+END;
+
+CREATE TRIGGER IF NOT EXISTS update_name_mappings_timestamp
+AFTER UPDATE ON investment_name_mappings
+BEGIN
+    UPDATE investment_name_mappings SET updated_at = datetime('now') WHERE id = NEW.id;
 END;
 
 -- ============================================================================
