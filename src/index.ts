@@ -93,6 +93,7 @@ app.get('/', (c) => {
 // Import routes
 import upload from './routes/upload';
 import configure from './routes/configure';
+import test from './routes/test';
 // import reports from './routes/reports';
 // import investments from './routes/investments';
 // import settings from './routes/settings';
@@ -100,6 +101,7 @@ import configure from './routes/configure';
 // Mount routes
 app.route('/api/upload', upload);
 app.route('/api/configure', configure);
+app.route('/api/test', test);
 // app.route('/api/reports', reports);
 // app.route('/api/investments', investments);
 // app.route('/api/settings', settings);
