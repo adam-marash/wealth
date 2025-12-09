@@ -328,12 +328,12 @@ reports.get('/cash-flow', async (c) => {
     const query = `
       SELECT
         ${periodGroup} as period,
-        COALESCE(SUM(CASE WHEN t.transaction_category = 'capital_call' THEN ABS(t.amount_normalized) ELSE 0 END), 0) as capital_calls,
-        COALESCE(SUM(CASE WHEN t.transaction_category = 'distribution' THEN ABS(t.amount_normalized) ELSE 0 END), 0) as distributions,
-        COALESCE(SUM(CASE WHEN t.transaction_category = 'capital_call' THEN ABS(t.amount_usd) ELSE 0 END), 0) as capital_calls_usd,
-        COALESCE(SUM(CASE WHEN t.transaction_category = 'distribution' THEN ABS(t.amount_usd) ELSE 0 END), 0) as distributions_usd,
-        COUNT(CASE WHEN t.transaction_category = 'capital_call' THEN 1 END) as capital_call_count,
-        COUNT(CASE WHEN t.transaction_category = 'distribution' THEN 1 END) as distribution_count
+        COALESCE(SUM(CASE WHEN t.transaction_category = 'deposit' THEN ABS(t.amount_normalized) ELSE 0 END), 0) as capital_calls,
+        COALESCE(SUM(CASE WHEN t.transaction_category IN ('income-distribution', 'withdrawal', 'capital-return') THEN ABS(t.amount_normalized) ELSE 0 END), 0) as distributions,
+        COALESCE(SUM(CASE WHEN t.transaction_category = 'deposit' THEN ABS(t.amount_usd) ELSE 0 END), 0) as capital_calls_usd,
+        COALESCE(SUM(CASE WHEN t.transaction_category IN ('income-distribution', 'withdrawal', 'capital-return') THEN ABS(t.amount_usd) ELSE 0 END), 0) as distributions_usd,
+        COUNT(CASE WHEN t.transaction_category = 'deposit' THEN 1 END) as capital_call_count,
+        COUNT(CASE WHEN t.transaction_category IN ('income-distribution', 'withdrawal', 'capital-return') THEN 1 END) as distribution_count
       FROM transactions t
       ${whereClause}
       GROUP BY period
@@ -410,13 +410,13 @@ reports.get('/investment/:id/summary', async (c) => {
     const transactionSummary = await c.env.DB.prepare(`
       SELECT
         COUNT(*) as total_transactions,
-        COALESCE(SUM(CASE WHEN transaction_category = 'capital_call' THEN ABS(amount_normalized) ELSE 0 END), 0) as total_called,
-        COALESCE(SUM(CASE WHEN transaction_category = 'distribution' THEN ABS(amount_normalized) ELSE 0 END), 0) as total_distributed,
-        COALESCE(SUM(CASE WHEN transaction_category = 'capital_call' THEN ABS(amount_usd) ELSE 0 END), 0) as total_called_usd,
-        COALESCE(SUM(CASE WHEN transaction_category = 'distribution' THEN ABS(amount_usd) ELSE 0 END), 0) as total_distributed_usd,
-        COUNT(CASE WHEN transaction_category = 'capital_call' THEN 1 END) as capital_call_count,
-        COUNT(CASE WHEN transaction_category = 'distribution' THEN 1 END) as distribution_count,
-        COUNT(CASE WHEN transaction_category = 'fee' THEN 1 END) as fee_count,
+        COALESCE(SUM(CASE WHEN transaction_category = 'deposit' THEN ABS(amount_normalized) ELSE 0 END), 0) as total_called,
+        COALESCE(SUM(CASE WHEN transaction_category IN ('income-distribution', 'withdrawal', 'capital-return') THEN ABS(amount_normalized) ELSE 0 END), 0) as total_distributed,
+        COALESCE(SUM(CASE WHEN transaction_category = 'deposit' THEN ABS(amount_usd) ELSE 0 END), 0) as total_called_usd,
+        COALESCE(SUM(CASE WHEN transaction_category IN ('income-distribution', 'withdrawal', 'capital-return') THEN ABS(amount_usd) ELSE 0 END), 0) as total_distributed_usd,
+        COUNT(CASE WHEN transaction_category = 'deposit' THEN 1 END) as capital_call_count,
+        COUNT(CASE WHEN transaction_category IN ('income-distribution', 'withdrawal', 'capital-return') THEN 1 END) as distribution_count,
+        COUNT(CASE WHEN transaction_category = 'management-fee' THEN 1 END) as fee_count,
         MIN(date) as first_transaction_date,
         MAX(date) as last_transaction_date
       FROM transactions
@@ -521,9 +521,9 @@ reports.get('/dashboard', async (c) => {
         COUNT(DISTINCT i.id) as total_investments,
         COUNT(DISTINCT CASE WHEN i.status = 'active' THEN i.id END) as active_investments,
         COUNT(t.id) as total_transactions,
-        COALESCE(SUM(CASE WHEN t.transaction_category = 'contribution' THEN ABS(t.amount_original) ELSE 0 END), 0) as total_called,
-        COALESCE(SUM(CASE WHEN t.transaction_category IN ('income_distribution', 'capital_distribution') THEN ABS(t.amount_original) ELSE 0 END), 0) as total_distributed,
-        COALESCE(SUM(CASE WHEN t.transaction_category = 'fee' THEN ABS(t.amount_original) ELSE 0 END), 0) as total_fees
+        COALESCE(SUM(CASE WHEN t.transaction_category = 'deposit' THEN ABS(t.amount_original) ELSE 0 END), 0) as total_called,
+        COALESCE(SUM(CASE WHEN t.transaction_category IN ('income-distribution', 'withdrawal', 'capital-return') THEN ABS(t.amount_original) ELSE 0 END), 0) as total_distributed,
+        COALESCE(SUM(CASE WHEN t.transaction_category = 'management-fee' THEN ABS(t.amount_original) ELSE 0 END), 0) as total_fees
       FROM investments i
       LEFT JOIN transactions t ON i.id = t.investment_id
     `).first();
@@ -692,7 +692,7 @@ reports.get('/equity-returns', async (c) => {
     const allTxResult = await c.env.DB.prepare(`
       SELECT date, transaction_category, amount_normalized
       FROM transactions
-      WHERE transaction_category IN ('capital_call', 'distribution')
+      WHERE transaction_category IN ('deposit', 'income-distribution', 'withdrawal', 'capital-return')
       ORDER BY date ASC
     `).all();
 

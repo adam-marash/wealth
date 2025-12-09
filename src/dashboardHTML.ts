@@ -1,4 +1,14 @@
 // Dashboard HTML template - inlined for Cloudflare Workers
+import { transactionTypeMappings } from './config/transaction-type-mappings';
+
+// Inject mappings as JSON for use in browser
+const mappingsJSON = JSON.stringify(
+  transactionTypeMappings.reduce((acc, m) => {
+    acc[m.slug] = m.display;
+    return acc;
+  }, {} as Record<string, string>)
+);
+
 export const dashboardHTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -337,6 +347,9 @@ export const dashboardHTML = `<!DOCTYPE html>
   <script type="text/babel">
     const { useState, useEffect } = React;
 
+    // Transaction type mappings from server
+    const TRANSACTION_TYPE_DISPLAY = ${mappingsJSON};
+
     const formatCurrency = (amount) => new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
@@ -354,9 +367,12 @@ export const dashboardHTML = `<!DOCTYPE html>
         'ILS': '₪',
         'EUR': '€',
         'GBP': '£',
+        '$': '$',
       };
       return symbols[currency] || '';
     };
+
+    const getTransactionTypeDisplay = (slug) => TRANSACTION_TYPE_DISPLAY[slug] || slug;
 
     const formatDate = (dateStr) => new Intl.DateTimeFormat('en-US', {
       year: 'numeric',
@@ -459,7 +475,7 @@ export const dashboardHTML = `<!DOCTYPE html>
                   <tr key={i}>
                     <td>{formatDate(tx.date)}</td>
                     <td>{tx.investment_name || tx.counterparty}</td>
-                    <td><span className={'badge ' + tx.transaction_category}>{tx.transaction_category.replace('_', ' ')}</span></td>
+                    <td><span className={'badge ' + tx.transaction_category}>{getTransactionTypeDisplay(tx.transaction_category)}</span></td>
                     <td style={{textAlign:'right'}}>
                       <span className={'amount ' + (tx.cash_flow_direction > 0 ? 'positive' : 'negative')}>
                         {tx.cash_flow_direction < 0 ? '-' : ''}{getCurrencySymbol(tx.original_currency)}{formatNumber(tx.amount_original)} {tx.original_currency}
@@ -562,7 +578,7 @@ export const dashboardHTML = `<!DOCTYPE html>
                   <tr key={i}>
                     <td>{formatDate(tx.date)}</td>
                     <td>{tx.investment_name || '-'}</td>
-                    <td><span className={'badge ' + tx.transaction_category}>{tx.transaction_category.replace('_', ' ')}</span></td>
+                    <td><span className={'badge ' + tx.transaction_category}>{getTransactionTypeDisplay(tx.transaction_category)}</span></td>
                     <td style={{textAlign:'right'}}>
                       <span className={'amount ' + (tx.cash_flow_direction > 0 ? 'positive' : 'negative')}>
                         {tx.cash_flow_direction < 0 ? '-' : ''}{getCurrencySymbol(tx.original_currency)}{formatNumber(tx.amount_original)} {tx.original_currency}
@@ -609,11 +625,9 @@ export const dashboardHTML = `<!DOCTYPE html>
                     onChange={(e) => setEditingTransaction({...editingTransaction, transaction_category: e.target.value})}
                     style={{width:'100%',padding:'8px',border:'1px solid #ddd',borderRadius:'4px'}}
                   >
-                    <option value="income_distribution">Income Distribution</option>
-                    <option value="capital_distribution">Capital Distribution</option>
-                    <option value="contribution">Contribution</option>
-                    <option value="fee">Fee</option>
-                    <option value="valuation">Valuation</option>
+                    {Object.entries(TRANSACTION_TYPE_DISPLAY).map(([slug, display]) => (
+                      <option key={slug} value={slug}>{display}</option>
+                    ))}
                   </select>
                 </div>
                 <div style={{display:'flex',gap:'10px',justifyContent:'flex-end'}}>
