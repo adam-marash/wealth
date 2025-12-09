@@ -777,6 +777,208 @@ configure.get('/investments-list', async (c) => {
 });
 
 /**
+ * GET /api/configure/investments/:id
+ * Get a single investment by ID
+ */
+configure.get('/investments/:id', async (c) => {
+  try {
+    const id = c.req.param('id');
+
+    const investment = await c.env.DB.prepare(`
+      SELECT
+        id,
+        name,
+        slug,
+        investment_group,
+        investment_type,
+        product_type,
+        initial_commitment,
+        committed_currency,
+        commitment_date,
+        status,
+        created_at,
+        updated_at
+      FROM investments
+      WHERE id = ?
+    `).bind(id).first();
+
+    if (!investment) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Investment not found',
+        message: `No investment found with ID ${id}`,
+      }, 404);
+    }
+
+    return c.json<ApiResponse>({
+      success: true,
+      data: investment,
+    });
+
+  } catch (error) {
+    console.error('Error fetching investment:', error);
+    return c.json<ApiResponse>({
+      success: false,
+      error: 'Failed to fetch investment',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    }, 500);
+  }
+});
+
+/**
+ * PUT /api/configure/investments/:id
+ * Update an investment by ID
+ */
+configure.put('/investments/:id', async (c) => {
+  try {
+    const id = c.req.param('id');
+    const updates = await c.req.json<{
+      name?: string;
+      investment_group?: string;
+      investment_type?: string;
+      product_type?: string;
+      initial_commitment?: number;
+      committed_currency?: string;
+      commitment_date?: string;
+      status?: string;
+    }>();
+
+    // Check if investment exists
+    const existing = await c.env.DB.prepare(
+      'SELECT id FROM investments WHERE id = ?'
+    ).bind(id).first();
+
+    if (!existing) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Investment not found',
+        message: `No investment found with ID ${id}`,
+      }, 404);
+    }
+
+    // Build update query dynamically based on provided fields
+    const fields: string[] = [];
+    const values: any[] = [];
+
+    if (updates.name !== undefined) {
+      fields.push('name = ?');
+      values.push(updates.name);
+    }
+    if (updates.investment_group !== undefined) {
+      fields.push('investment_group = ?');
+      values.push(updates.investment_group || null);
+    }
+    if (updates.investment_type !== undefined) {
+      fields.push('investment_type = ?');
+      values.push(updates.investment_type || null);
+    }
+    if (updates.product_type !== undefined) {
+      fields.push('product_type = ?');
+      values.push(updates.product_type || null);
+    }
+    if (updates.initial_commitment !== undefined) {
+      fields.push('initial_commitment = ?');
+      values.push(updates.initial_commitment || null);
+    }
+    if (updates.committed_currency !== undefined) {
+      fields.push('committed_currency = ?');
+      values.push(updates.committed_currency || null);
+    }
+    if (updates.commitment_date !== undefined) {
+      fields.push('commitment_date = ?');
+      values.push(updates.commitment_date || null);
+    }
+    if (updates.status !== undefined) {
+      fields.push('status = ?');
+      values.push(updates.status);
+    }
+
+    if (fields.length === 0) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'No fields to update',
+        message: 'Please provide at least one field to update',
+      }, 400);
+    }
+
+    // Always update updated_at
+    fields.push("updated_at = datetime('now')");
+    values.push(id);
+
+    const query = `UPDATE investments SET ${fields.join(', ')} WHERE id = ?`;
+    await c.env.DB.prepare(query).bind(...values).run();
+
+    return c.json<ApiResponse>({
+      success: true,
+      message: `Investment ${id} updated successfully`,
+    });
+
+  } catch (error) {
+    console.error('Error updating investment:', error);
+    return c.json<ApiResponse>({
+      success: false,
+      error: 'Failed to update investment',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    }, 500);
+  }
+});
+
+/**
+ * DELETE /api/configure/investments/:id
+ * Delete an investment by ID
+ *
+ * NOTE: This will fail if there are transactions linked to this investment.
+ * Consider implementing soft delete (status = 'deleted') for data integrity.
+ */
+configure.delete('/investments/:id', async (c) => {
+  try {
+    const id = c.req.param('id');
+
+    // Check if investment exists
+    const existing = await c.env.DB.prepare(
+      'SELECT id, name FROM investments WHERE id = ?'
+    ).bind(id).first<{ id: number; name: string }>();
+
+    if (!existing) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Investment not found',
+        message: `No investment found with ID ${id}`,
+      }, 404);
+    }
+
+    // Check for linked transactions
+    const txCount = await c.env.DB.prepare(
+      'SELECT COUNT(*) as count FROM transactions WHERE investment_id = ?'
+    ).bind(id).first<{ count: number }>();
+
+    if (txCount && txCount.count > 0) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Cannot delete investment with transactions',
+        message: `Investment "${existing.name}" has ${txCount.count} linked transaction(s). Delete those first or consider setting status to 'inactive' instead.`,
+      }, 400);
+    }
+
+    // Delete the investment
+    await c.env.DB.prepare('DELETE FROM investments WHERE id = ?').bind(id).run();
+
+    return c.json<ApiResponse>({
+      success: true,
+      message: `Investment "${existing.name}" deleted successfully`,
+    });
+
+  } catch (error) {
+    console.error('Error deleting investment:', error);
+    return c.json<ApiResponse>({
+      success: false,
+      error: 'Failed to delete investment',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    }, 500);
+  }
+});
+
+/**
  * POST /api/configure/map-investment-name
  * Map a raw investment name (variation) to a canonical slug
  *

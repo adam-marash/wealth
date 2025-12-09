@@ -204,6 +204,48 @@ export const dashboardHTML = `<!DOCTYPE html>
       color: white;
     }
     .btn-secondary:hover { background: #4b5563; }
+    .btn-small {
+      padding: 5px 12px;
+      border: none;
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: #3b82f6;
+      color: white;
+    }
+    .btn-small:hover { background: #2563eb; }
+    .btn-danger {
+      background: #e74c3c;
+      color: white;
+    }
+    .btn-danger:hover { background: #c0392b; }
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .modal {
+      background: white;
+      border-radius: 8px;
+      padding: 30px;
+      max-width: 500px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    .modal h3 {
+      margin-bottom: 20px;
+      font-size: 20px;
+    }
     .wizard-steps {
       display: flex;
       gap: 10px;
@@ -420,15 +462,66 @@ export const dashboardHTML = `<!DOCTYPE html>
     function TransactionsPage() {
       const [loading, setLoading] = useState(true);
       const [transactions, setTransactions] = useState([]);
+      const [editingTransaction, setEditingTransaction] = useState(null);
+      const [deletingTransaction, setDeletingTransaction] = useState(null);
 
-      useEffect(() => {
+      const loadTransactions = () => {
+        setLoading(true);
         fetch('/api/reports/transactions?pageSize=100')
           .then(res => res.json())
           .then(result => {
             if (result.success) setTransactions(result.data.items);
             setLoading(false);
           });
+      };
+
+      useEffect(() => {
+        loadTransactions();
       }, []);
+
+      const handleEdit = (transaction) => {
+        setEditingTransaction({...transaction});
+      };
+
+      const handleSaveEdit = async () => {
+        try {
+          const response = await fetch(\`/api/transactions/\${editingTransaction.id}\`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              date: editingTransaction.date,
+              amount_original: parseFloat(editingTransaction.amount_original),
+              transaction_category: editingTransaction.transaction_category,
+            }),
+          });
+          const result = await response.json();
+          if (result.success) {
+            setEditingTransaction(null);
+            loadTransactions();
+          } else {
+            alert('Failed to update transaction: ' + result.message);
+          }
+        } catch (error) {
+          alert('Error updating transaction: ' + error.message);
+        }
+      };
+
+      const handleDelete = async () => {
+        try {
+          const response = await fetch(\`/api/transactions/\${deletingTransaction.id}\`, {
+            method: 'DELETE',
+          });
+          const result = await response.json();
+          if (result.success) {
+            setDeletingTransaction(null);
+            loadTransactions();
+          } else {
+            alert('Failed to delete transaction: ' + result.message);
+          }
+        } catch (error) {
+          alert('Error deleting transaction: ' + error.message);
+        }
+      };
 
       if (loading) return <div className="loading">Loading...</div>;
 
@@ -446,6 +539,7 @@ export const dashboardHTML = `<!DOCTYPE html>
                   <th>Investment</th>
                   <th>Type</th>
                   <th style={{textAlign:'right'}}>Amount</th>
+                  <th style={{width: '120px'}}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -459,11 +553,81 @@ export const dashboardHTML = `<!DOCTYPE html>
                         {tx.cash_flow_direction === 'outflow' ? '-' : ''}{formatCurrency(tx.amount_original)} {tx.original_currency}
                       </span>
                     </td>
+                    <td>
+                      <button className="btn-small" onClick={() => handleEdit(tx)} style={{marginRight:'5px'}}>Edit</button>
+                      <button className="btn-small btn-danger" onClick={() => setDeletingTransaction(tx)}>Delete</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+
+          {/* Edit Modal */}
+          {editingTransaction && (
+            <div className="modal-overlay" onClick={() => setEditingTransaction(null)}>
+              <div className="modal" onClick={(e) => e.stopPropagation()}>
+                <h3>Edit Transaction</h3>
+                <div style={{marginBottom:'15px'}}>
+                  <label style={{display:'block',marginBottom:'5px'}}>Date:</label>
+                  <input
+                    type="date"
+                    value={editingTransaction.date}
+                    onChange={(e) => setEditingTransaction({...editingTransaction, date: e.target.value})}
+                    style={{width:'100%',padding:'8px',border:'1px solid #ddd',borderRadius:'4px'}}
+                  />
+                </div>
+                <div style={{marginBottom:'15px'}}>
+                  <label style={{display:'block',marginBottom:'5px'}}>Amount:</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={editingTransaction.amount_original}
+                    onChange={(e) => setEditingTransaction({...editingTransaction, amount_original: e.target.value})}
+                    style={{width:'100%',padding:'8px',border:'1px solid #ddd',borderRadius:'4px'}}
+                  />
+                </div>
+                <div style={{marginBottom:'15px'}}>
+                  <label style={{display:'block',marginBottom:'5px'}}>Category:</label>
+                  <select
+                    value={editingTransaction.transaction_category}
+                    onChange={(e) => setEditingTransaction({...editingTransaction, transaction_category: e.target.value})}
+                    style={{width:'100%',padding:'8px',border:'1px solid #ddd',borderRadius:'4px'}}
+                  >
+                    <option value="income_distribution">Income Distribution</option>
+                    <option value="capital_distribution">Capital Distribution</option>
+                    <option value="contribution">Contribution</option>
+                    <option value="fee">Fee</option>
+                    <option value="valuation">Valuation</option>
+                  </select>
+                </div>
+                <div style={{display:'flex',gap:'10px',justifyContent:'flex-end'}}>
+                  <button className="btn" onClick={() => setEditingTransaction(null)}>Cancel</button>
+                  <button className="btn btn-primary" onClick={handleSaveEdit}>Save</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Delete Confirmation Modal */}
+          {deletingTransaction && (
+            <div className="modal-overlay" onClick={() => setDeletingTransaction(null)}>
+              <div className="modal" onClick={(e) => e.stopPropagation()}>
+                <h3>Delete Transaction</h3>
+                <p>Are you sure you want to delete this transaction?</p>
+                <p style={{fontSize:'13px',color:'#666'}}>
+                  <strong>Investment:</strong> {deletingTransaction.investment_name}<br/>
+                  <strong>Date:</strong> {formatDate(deletingTransaction.date)}<br/>
+                  <strong>Amount:</strong> {formatCurrency(deletingTransaction.amount_original)} {deletingTransaction.original_currency}
+                </p>
+                <p style={{color:'#e74c3c',fontSize:'13px'}}>This action cannot be undone.</p>
+                <div style={{display:'flex',gap:'10px',justifyContent:'flex-end',marginTop:'20px'}}>
+                  <button className="btn" onClick={() => setDeletingTransaction(null)}>Cancel</button>
+                  <button className="btn btn-danger" onClick={handleDelete}>Delete</button>
+                </div>
+              </div>
+            </div>
+          )}
         </>
       );
     }
@@ -839,15 +1003,67 @@ export const dashboardHTML = `<!DOCTYPE html>
     function InvestmentsPage() {
       const [loading, setLoading] = useState(true);
       const [investments, setInvestments] = useState([]);
+      const [editingInvestment, setEditingInvestment] = useState(null);
+      const [deletingInvestment, setDeletingInvestment] = useState(null);
 
-      useEffect(() => {
+      const loadInvestments = () => {
+        setLoading(true);
         fetch('/api/configure/investments-list')
           .then(res => res.json())
           .then(result => {
             if (result.success) setInvestments(result.data);
             setLoading(false);
           });
+      };
+
+      useEffect(() => {
+        loadInvestments();
       }, []);
+
+      const handleEdit = (investment) => {
+        setEditingInvestment({...investment});
+      };
+
+      const handleSaveEdit = async () => {
+        try {
+          const response = await fetch(\`/api/configure/investments/\${editingInvestment.id}\`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: editingInvestment.name,
+              product_type: editingInvestment.product_type,
+              investment_group: editingInvestment.investment_group,
+              status: editingInvestment.status,
+            }),
+          });
+          const result = await response.json();
+          if (result.success) {
+            setEditingInvestment(null);
+            loadInvestments();
+          } else {
+            alert('Failed to update investment: ' + result.message);
+          }
+        } catch (error) {
+          alert('Error updating investment: ' + error.message);
+        }
+      };
+
+      const handleDelete = async () => {
+        try {
+          const response = await fetch(\`/api/configure/investments/\${deletingInvestment.id}\`, {
+            method: 'DELETE',
+          });
+          const result = await response.json();
+          if (result.success) {
+            setDeletingInvestment(null);
+            loadInvestments();
+          } else {
+            alert('Failed to delete investment: ' + result.message);
+          }
+        } catch (error) {
+          alert('Error deleting investment: ' + error.message);
+        }
+      };
 
       if (loading) return <div className="loading">Loading...</div>;
 
@@ -865,6 +1081,7 @@ export const dashboardHTML = `<!DOCTYPE html>
                   <th>Slug</th>
                   <th>Type</th>
                   <th>Status</th>
+                  <th style={{width: '120px'}}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -874,11 +1091,82 @@ export const dashboardHTML = `<!DOCTYPE html>
                     <td style={{fontFamily:'monospace',fontSize:'12px',color:'#666'}}>{inv.slug || '-'}</td>
                     <td>{inv.product_type || '-'}</td>
                     <td><span className="badge">{inv.status}</span></td>
+                    <td>
+                      <button className="btn-small" onClick={() => handleEdit(inv)} style={{marginRight:'5px'}}>Edit</button>
+                      <button className="btn-small btn-danger" onClick={() => setDeletingInvestment(inv)}>Delete</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+
+          {/* Edit Modal */}
+          {editingInvestment && (
+            <div className="modal-overlay" onClick={() => setEditingInvestment(null)}>
+              <div className="modal" onClick={(e) => e.stopPropagation()}>
+                <h3>Edit Investment</h3>
+                <div style={{marginBottom:'15px'}}>
+                  <label style={{display:'block',marginBottom:'5px'}}>Name:</label>
+                  <input
+                    type="text"
+                    value={editingInvestment.name}
+                    onChange={(e) => setEditingInvestment({...editingInvestment, name: e.target.value})}
+                    style={{width:'100%',padding:'8px',border:'1px solid #ddd',borderRadius:'4px'}}
+                  />
+                </div>
+                <div style={{marginBottom:'15px'}}>
+                  <label style={{display:'block',marginBottom:'5px'}}>Product Type:</label>
+                  <input
+                    type="text"
+                    value={editingInvestment.product_type || ''}
+                    onChange={(e) => setEditingInvestment({...editingInvestment, product_type: e.target.value})}
+                    style={{width:'100%',padding:'8px',border:'1px solid #ddd',borderRadius:'4px'}}
+                  />
+                </div>
+                <div style={{marginBottom:'15px'}}>
+                  <label style={{display:'block',marginBottom:'5px'}}>Investment Group:</label>
+                  <input
+                    type="text"
+                    value={editingInvestment.investment_group || ''}
+                    onChange={(e) => setEditingInvestment({...editingInvestment, investment_group: e.target.value})}
+                    style={{width:'100%',padding:'8px',border:'1px solid #ddd',borderRadius:'4px'}}
+                  />
+                </div>
+                <div style={{marginBottom:'15px'}}>
+                  <label style={{display:'block',marginBottom:'5px'}}>Status:</label>
+                  <select
+                    value={editingInvestment.status}
+                    onChange={(e) => setEditingInvestment({...editingInvestment, status: e.target.value})}
+                    style={{width:'100%',padding:'8px',border:'1px solid #ddd',borderRadius:'4px'}}
+                  >
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                    <option value="closed">Closed</option>
+                  </select>
+                </div>
+                <div style={{display:'flex',gap:'10px',justifyContent:'flex-end'}}>
+                  <button className="btn" onClick={() => setEditingInvestment(null)}>Cancel</button>
+                  <button className="btn btn-primary" onClick={handleSaveEdit}>Save</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Delete Confirmation Modal */}
+          {deletingInvestment && (
+            <div className="modal-overlay" onClick={() => setDeletingInvestment(null)}>
+              <div className="modal" onClick={(e) => e.stopPropagation()}>
+                <h3>Delete Investment</h3>
+                <p>Are you sure you want to delete <strong>{deletingInvestment.name}</strong>?</p>
+                <p style={{color:'#e74c3c',fontSize:'13px'}}>This action cannot be undone. Note: Investments with transactions cannot be deleted.</p>
+                <div style={{display:'flex',gap:'10px',justifyContent:'flex-end',marginTop:'20px'}}>
+                  <button className="btn" onClick={() => setDeletingInvestment(null)}>Cancel</button>
+                  <button className="btn btn-danger" onClick={handleDelete}>Delete</button>
+                </div>
+              </div>
+            </div>
+          )}
         </>
       );
     }
