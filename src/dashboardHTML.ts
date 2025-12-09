@@ -343,6 +343,21 @@ export const dashboardHTML = `<!DOCTYPE html>
       minimumFractionDigits: 0,
     }).format(Math.abs(amount));
 
+    const formatNumber = (amount) => new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(Math.abs(amount));
+
+    const getCurrencySymbol = (currency) => {
+      const symbols = {
+        'USD': '$',
+        'ILS': '₪',
+        'EUR': '€',
+        'GBP': '£',
+      };
+      return symbols[currency] || '';
+    };
+
     const formatDate = (dateStr) => new Intl.DateTimeFormat('en-US', {
       year: 'numeric',
       month: 'short',
@@ -446,8 +461,8 @@ export const dashboardHTML = `<!DOCTYPE html>
                     <td>{tx.investment_name || tx.counterparty}</td>
                     <td><span className={'badge ' + tx.transaction_category}>{tx.transaction_category.replace('_', ' ')}</span></td>
                     <td style={{textAlign:'right'}}>
-                      <span className={'amount ' + (tx.cash_flow_direction === 1 ? 'positive' : 'negative')}>
-                        {formatCurrency(tx.amount_normalized)} {tx.original_currency}
+                      <span className={'amount ' + (tx.cash_flow_direction > 0 ? 'positive' : 'negative')}>
+                        {tx.cash_flow_direction < 0 ? '-' : ''}{getCurrencySymbol(tx.original_currency)}{formatNumber(tx.amount_original)} {tx.original_currency}
                       </span>
                     </td>
                   </tr>
@@ -549,8 +564,8 @@ export const dashboardHTML = `<!DOCTYPE html>
                     <td>{tx.investment_name || '-'}</td>
                     <td><span className={'badge ' + tx.transaction_category}>{tx.transaction_category.replace('_', ' ')}</span></td>
                     <td style={{textAlign:'right'}}>
-                      <span className={'amount ' + (tx.cash_flow_direction === 1 ? 'positive' : 'negative')}>
-                        {formatCurrency(tx.amount_normalized)} {tx.original_currency}
+                      <span className={'amount ' + (tx.cash_flow_direction > 0 ? 'positive' : 'negative')}>
+                        {tx.cash_flow_direction < 0 ? '-' : ''}{getCurrencySymbol(tx.original_currency)}{formatNumber(tx.amount_original)} {tx.original_currency}
                       </span>
                     </td>
                     <td>
@@ -618,7 +633,7 @@ export const dashboardHTML = `<!DOCTYPE html>
                 <p style={{fontSize:'13px',color:'#666'}}>
                   <strong>Investment:</strong> {deletingTransaction.investment_name}<br/>
                   <strong>Date:</strong> {formatDate(deletingTransaction.date)}<br/>
-                  <strong>Amount:</strong> {formatCurrency(deletingTransaction.amount_original)} {deletingTransaction.original_currency}
+                  <strong>Amount:</strong> {getCurrencySymbol(deletingTransaction.original_currency)}{formatNumber(deletingTransaction.amount_original)} {deletingTransaction.original_currency}
                 </p>
                 <p style={{color:'#e74c3c',fontSize:'13px'}}>This action cannot be undone.</p>
                 <div style={{display:'flex',gap:'10px',justifyContent:'flex-end',marginTop:'20px'}}>
