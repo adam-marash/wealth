@@ -16,25 +16,15 @@ CREATE TABLE IF NOT EXISTS investments (
     committed_currency TEXT,
     commitment_date TEXT,   -- ISO 8601 date format
     status TEXT DEFAULT 'active',  -- active, fully_called, exited, written_off
-    created_at TEXT DEFAULT (datetime('now')),
-    updated_at TEXT DEFAULT (datetime('now'))
-);
-
--- Commitments: Capital commitments per investment
-CREATE TABLE IF NOT EXISTS commitments (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    investment_id INTEGER NOT NULL,
-    commitment_amount REAL NOT NULL,
-    currency TEXT NOT NULL,
-    commitment_date TEXT NOT NULL,  -- ISO 8601 date format
+    -- Commitment tracking fields (consolidated from commitments table)
+    commitment_amount_usd REAL,     -- USD-normalized commitment amount
     called_to_date REAL DEFAULT 0,  -- Calculated from transactions
-    remaining REAL,                 -- Calculated: commitment_amount - called_to_date
+    remaining REAL,                 -- Calculated: commitment_amount_usd - called_to_date
     phase TEXT,                     -- building_up, stable, drawing_down
     manual_phase INTEGER DEFAULT 0, -- Boolean flag for manual override
-    notes TEXT,
+    commitment_notes TEXT,          -- Notes about commitment
     created_at TEXT DEFAULT (datetime('now')),
-    updated_at TEXT DEFAULT (datetime('now')),
-    FOREIGN KEY (investment_id) REFERENCES investments(id) ON DELETE CASCADE
+    updated_at TEXT DEFAULT (datetime('now'))
 );
 
 -- Transactions: Core transaction data
@@ -53,14 +43,12 @@ CREATE TABLE IF NOT EXISTS transactions (
     exchange_rate_to_ils REAL,             -- Source currency → ILS rate from Excel
     investment_id INTEGER,
     counterparty TEXT,
-    commitment_id INTEGER,                 -- Links to capital commitments
     dedup_hash TEXT UNIQUE,                -- For deduplication
     metadata TEXT,                         -- JSON: store original row data
     source_file TEXT,                      -- Original filename
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now')),
-    FOREIGN KEY (investment_id) REFERENCES investments(id) ON DELETE SET NULL,
-    FOREIGN KEY (commitment_id) REFERENCES commitments(id) ON DELETE SET NULL
+    FOREIGN KEY (investment_id) REFERENCES investments(id) ON DELETE SET NULL
 );
 
 -- ============================================================================
@@ -133,10 +121,7 @@ CREATE INDEX IF NOT EXISTS idx_transactions_category_investment ON transactions(
 CREATE INDEX IF NOT EXISTS idx_investments_status ON investments(status);
 CREATE INDEX IF NOT EXISTS idx_investments_type ON investments(investment_type);
 CREATE INDEX IF NOT EXISTS idx_investments_group ON investments(investment_group);
-
--- Commitments table indexes
-CREATE INDEX IF NOT EXISTS idx_commitments_investment_id ON commitments(investment_id);
-CREATE INDEX IF NOT EXISTS idx_commitments_phase ON commitments(phase);
+CREATE INDEX IF NOT EXISTS idx_investments_phase ON investments(phase);
 
 -- Column mappings index
 CREATE INDEX IF NOT EXISTS idx_column_mappings_active ON column_mappings(active);
@@ -157,12 +142,6 @@ CREATE TRIGGER IF NOT EXISTS update_investments_timestamp
 AFTER UPDATE ON investments
 BEGIN
     UPDATE investments SET updated_at = datetime('now') WHERE id = NEW.id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS update_commitments_timestamp
-AFTER UPDATE ON commitments
-BEGIN
-    UPDATE commitments SET updated_at = datetime('now') WHERE id = NEW.id;
 END;
 
 CREATE TRIGGER IF NOT EXISTS update_transaction_type_mappings_timestamp
