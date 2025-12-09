@@ -840,6 +840,10 @@ configure.put('/investments/:id', async (c) => {
       initial_commitment?: number;
       committed_currency?: string;
       commitment_date?: string;
+      commitment_amount_usd?: number;
+      phase?: string;
+      manual_phase?: number;
+      commitment_notes?: string;
       status?: string;
     }>();
 
@@ -887,6 +891,22 @@ configure.put('/investments/:id', async (c) => {
     if (updates.commitment_date !== undefined) {
       fields.push('commitment_date = ?');
       values.push(updates.commitment_date || null);
+    }
+    if (updates.commitment_amount_usd !== undefined) {
+      fields.push('commitment_amount_usd = ?');
+      values.push(updates.commitment_amount_usd || null);
+    }
+    if (updates.phase !== undefined) {
+      fields.push('phase = ?');
+      values.push(updates.phase || null);
+    }
+    if (updates.manual_phase !== undefined) {
+      fields.push('manual_phase = ?');
+      values.push(updates.manual_phase || 0);
+    }
+    if (updates.commitment_notes !== undefined) {
+      fields.push('commitment_notes = ?');
+      values.push(updates.commitment_notes || null);
     }
     if (updates.status !== undefined) {
       fields.push('status = ?');

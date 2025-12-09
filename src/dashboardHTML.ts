@@ -446,8 +446,8 @@ export const dashboardHTML = `<!DOCTYPE html>
                     <td>{tx.investment_name || tx.counterparty}</td>
                     <td><span className={'badge ' + tx.transaction_category}>{tx.transaction_category.replace('_', ' ')}</span></td>
                     <td style={{textAlign:'right'}}>
-                      <span className={'amount ' + (tx.cash_flow_direction === 'inflow' ? 'positive' : 'negative')}>
-                        {tx.cash_flow_direction === 'outflow' ? '-' : ''}{formatCurrency(tx.amount_original)} {tx.original_currency}
+                      <span className={'amount ' + (tx.cash_flow_direction === 1 ? 'positive' : 'negative')}>
+                        {formatCurrency(tx.amount_normalized)} {tx.original_currency}
                       </span>
                     </td>
                   </tr>
@@ -549,8 +549,8 @@ export const dashboardHTML = `<!DOCTYPE html>
                     <td>{tx.investment_name || '-'}</td>
                     <td><span className={'badge ' + tx.transaction_category}>{tx.transaction_category.replace('_', ' ')}</span></td>
                     <td style={{textAlign:'right'}}>
-                      <span className={'amount ' + (tx.cash_flow_direction === 'inflow' ? 'positive' : 'negative')}>
-                        {tx.cash_flow_direction === 'outflow' ? '-' : ''}{formatCurrency(tx.amount_original)} {tx.original_currency}
+                      <span className={'amount ' + (tx.cash_flow_direction === 1 ? 'positive' : 'negative')}>
+                        {formatCurrency(tx.amount_normalized)} {tx.original_currency}
                       </span>
                     </td>
                     <td>
@@ -1034,6 +1034,13 @@ export const dashboardHTML = `<!DOCTYPE html>
               product_type: editingInvestment.product_type,
               investment_group: editingInvestment.investment_group,
               status: editingInvestment.status,
+              initial_commitment: editingInvestment.initial_commitment,
+              committed_currency: editingInvestment.committed_currency,
+              commitment_date: editingInvestment.commitment_date,
+              commitment_amount_usd: editingInvestment.commitment_amount_usd,
+              phase: editingInvestment.phase,
+              manual_phase: editingInvestment.manual_phase,
+              commitment_notes: editingInvestment.commitment_notes,
             }),
           });
           const result = await response.json();
@@ -1104,47 +1111,132 @@ export const dashboardHTML = `<!DOCTYPE html>
           {/* Edit Modal */}
           {editingInvestment && (
             <div className="modal-overlay" onClick={() => setEditingInvestment(null)}>
-              <div className="modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal" onClick={(e) => e.stopPropagation()} style={{maxWidth:'600px'}}>
                 <h3>Edit Investment</h3>
-                <div style={{marginBottom:'15px'}}>
-                  <label style={{display:'block',marginBottom:'5px'}}>Name:</label>
-                  <input
-                    type="text"
-                    value={editingInvestment.name}
-                    onChange={(e) => setEditingInvestment({...editingInvestment, name: e.target.value})}
-                    style={{width:'100%',padding:'8px',border:'1px solid #ddd',borderRadius:'4px'}}
-                  />
+
+                <div style={{marginBottom:'20px',paddingBottom:'15px',borderBottom:'1px solid #eee'}}>
+                  <h4 style={{fontSize:'14px',fontWeight:'600',marginBottom:'10px',color:'#666'}}>Basic Information</h4>
+                  <div style={{marginBottom:'15px'}}>
+                    <label style={{display:'block',marginBottom:'5px'}}>Name:</label>
+                    <input
+                      type="text"
+                      value={editingInvestment.name}
+                      onChange={(e) => setEditingInvestment({...editingInvestment, name: e.target.value})}
+                      style={{width:'100%',padding:'8px',border:'1px solid #ddd',borderRadius:'4px'}}
+                    />
+                  </div>
+                  <div style={{marginBottom:'15px'}}>
+                    <label style={{display:'block',marginBottom:'5px'}}>Product Type:</label>
+                    <input
+                      type="text"
+                      value={editingInvestment.product_type || ''}
+                      onChange={(e) => setEditingInvestment({...editingInvestment, product_type: e.target.value})}
+                      style={{width:'100%',padding:'8px',border:'1px solid #ddd',borderRadius:'4px'}}
+                    />
+                  </div>
+                  <div style={{marginBottom:'15px'}}>
+                    <label style={{display:'block',marginBottom:'5px'}}>Investment Group:</label>
+                    <input
+                      type="text"
+                      value={editingInvestment.investment_group || ''}
+                      onChange={(e) => setEditingInvestment({...editingInvestment, investment_group: e.target.value})}
+                      style={{width:'100%',padding:'8px',border:'1px solid #ddd',borderRadius:'4px'}}
+                    />
+                  </div>
+                  <div style={{marginBottom:'15px'}}>
+                    <label style={{display:'block',marginBottom:'5px'}}>Status:</label>
+                    <select
+                      value={editingInvestment.status}
+                      onChange={(e) => setEditingInvestment({...editingInvestment, status: e.target.value})}
+                      style={{width:'100%',padding:'8px',border:'1px solid #ddd',borderRadius:'4px'}}
+                    >
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                      <option value="closed">Closed</option>
+                    </select>
+                  </div>
                 </div>
-                <div style={{marginBottom:'15px'}}>
-                  <label style={{display:'block',marginBottom:'5px'}}>Product Type:</label>
-                  <input
-                    type="text"
-                    value={editingInvestment.product_type || ''}
-                    onChange={(e) => setEditingInvestment({...editingInvestment, product_type: e.target.value})}
-                    style={{width:'100%',padding:'8px',border:'1px solid #ddd',borderRadius:'4px'}}
-                  />
+
+                <div style={{marginBottom:'20px',paddingBottom:'15px',borderBottom:'1px solid #eee'}}>
+                  <h4 style={{fontSize:'14px',fontWeight:'600',marginBottom:'10px',color:'#666'}}>Commitment Details</h4>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'15px',marginBottom:'15px'}}>
+                    <div>
+                      <label style={{display:'block',marginBottom:'5px'}}>Commitment Amount:</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={editingInvestment.initial_commitment || ''}
+                        onChange={(e) => setEditingInvestment({...editingInvestment, initial_commitment: parseFloat(e.target.value) || null})}
+                        style={{width:'100%',padding:'8px',border:'1px solid #ddd',borderRadius:'4px'}}
+                      />
+                    </div>
+                    <div>
+                      <label style={{display:'block',marginBottom:'5px'}}>Currency:</label>
+                      <input
+                        type="text"
+                        value={editingInvestment.committed_currency || ''}
+                        onChange={(e) => setEditingInvestment({...editingInvestment, committed_currency: e.target.value})}
+                        placeholder="USD, ILS, EUR..."
+                        style={{width:'100%',padding:'8px',border:'1px solid #ddd',borderRadius:'4px'}}
+                      />
+                    </div>
+                  </div>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'15px',marginBottom:'15px'}}>
+                    <div>
+                      <label style={{display:'block',marginBottom:'5px'}}>Commitment Date:</label>
+                      <input
+                        type="date"
+                        value={editingInvestment.commitment_date || ''}
+                        onChange={(e) => setEditingInvestment({...editingInvestment, commitment_date: e.target.value})}
+                        style={{width:'100%',padding:'8px',border:'1px solid #ddd',borderRadius:'4px'}}
+                      />
+                    </div>
+                    <div>
+                      <label style={{display:'block',marginBottom:'5px'}}>Amount (USD):</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={editingInvestment.commitment_amount_usd || ''}
+                        onChange={(e) => setEditingInvestment({...editingInvestment, commitment_amount_usd: parseFloat(e.target.value) || null})}
+                        placeholder="For USD summing"
+                        style={{width:'100%',padding:'8px',border:'1px solid #ddd',borderRadius:'4px'}}
+                      />
+                    </div>
+                  </div>
+                  <div style={{marginBottom:'15px'}}>
+                    <label style={{display:'block',marginBottom:'5px'}}>Phase:</label>
+                    <select
+                      value={editingInvestment.phase || ''}
+                      onChange={(e) => setEditingInvestment({...editingInvestment, phase: e.target.value})}
+                      style={{width:'100%',padding:'8px',border:'1px solid #ddd',borderRadius:'4px'}}
+                    >
+                      <option value="">Auto-detect</option>
+                      <option value="building_up">Building Up</option>
+                      <option value="stable">Stable</option>
+                      <option value="drawing_down">Drawing Down</option>
+                    </select>
+                  </div>
+                  <div style={{marginBottom:'15px'}}>
+                    <label style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                      <input
+                        type="checkbox"
+                        checked={editingInvestment.manual_phase || false}
+                        onChange={(e) => setEditingInvestment({...editingInvestment, manual_phase: e.target.checked ? 1 : 0})}
+                      />
+                      <span>Manual phase override (prevent auto-detection)</span>
+                    </label>
+                  </div>
+                  <div style={{marginBottom:'15px'}}>
+                    <label style={{display:'block',marginBottom:'5px'}}>Notes:</label>
+                    <textarea
+                      value={editingInvestment.commitment_notes || ''}
+                      onChange={(e) => setEditingInvestment({...editingInvestment, commitment_notes: e.target.value})}
+                      rows="3"
+                      style={{width:'100%',padding:'8px',border:'1px solid #ddd',borderRadius:'4px',fontFamily:'inherit'}}
+                    />
+                  </div>
                 </div>
-                <div style={{marginBottom:'15px'}}>
-                  <label style={{display:'block',marginBottom:'5px'}}>Investment Group:</label>
-                  <input
-                    type="text"
-                    value={editingInvestment.investment_group || ''}
-                    onChange={(e) => setEditingInvestment({...editingInvestment, investment_group: e.target.value})}
-                    style={{width:'100%',padding:'8px',border:'1px solid #ddd',borderRadius:'4px'}}
-                  />
-                </div>
-                <div style={{marginBottom:'15px'}}>
-                  <label style={{display:'block',marginBottom:'5px'}}>Status:</label>
-                  <select
-                    value={editingInvestment.status}
-                    onChange={(e) => setEditingInvestment({...editingInvestment, status: e.target.value})}
-                    style={{width:'100%',padding:'8px',border:'1px solid #ddd',borderRadius:'4px'}}
-                  >
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                    <option value="closed">Closed</option>
-                  </select>
-                </div>
+
                 <div style={{display:'flex',gap:'10px',justifyContent:'flex-end'}}>
                   <button className="btn" onClick={() => setEditingInvestment(null)}>Cancel</button>
                   <button className="btn btn-primary" onClick={handleSaveEdit}>Save</button>
