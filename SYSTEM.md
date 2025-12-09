@@ -186,44 +186,40 @@ function calculateAllMetrics(
 ### Exchange Rate Conversion
 **File**: `src/services/exchange-rate.ts`
 
-During import:
-1. Parse `original_currency` from CSV
+**Conversion Path**: Direct conversion from original currency to USD (not via ILS)
+
+Process during import:
+1. Parse `original_currency` from CSV (e.g., "ILS", "EUR", "$")
 2. Map symbol to ISO code: $ → USD, ₪ → ILS, € → EUR
-3. Query `exchange_rates` table for date + currency pair
-4. If not cached, fetch from external API (requires `EXCHANGE_RATE_API_KEY`)
+3. Query `exchange_rates` table for (date, from_currency='ILS', to_currency='USD')
+4. If not cached, fetch from external API with fallback providers:
+   - Primary: Frankfurter (free, no API key required)
+   - Fallback: exchangeratesapi.io (requires API key)
+   - Fallback: fixer.io (requires API key)
 5. Convert: `amount_usd = amount_normalized * rate`
-6. Cache rate for future transactions
+6. Cache rate in database for future transactions
+
+**Example**: Transaction dated 2024-01-15 with amount 15,000 ILS
+- Fetch rate for (2024-01-15, ILS, USD) → 0.27
+- Calculate: `amount_usd = 15000 * 0.27 = 4050`
+- Cache (2024-01-15, ILS, USD, 0.27) for next ILS transaction on same date
 
 **Base Currency**: USD (system_config: `currency_base='USD'`)
 
-### Current Limitations
-
-**Missing USD conversion**: If exchange rate unavailable, `amount_usd` is NULL:
-- Transaction imports successfully (warehouses original amount)
-- Transaction appears in lists (shows original currency)
-- Transaction excluded from portfolio metrics (SUM ignores NULLs)
-- Warning logged but no user notification
-
-**No currency preference setting**: System assumes USD for analysis. Cannot switch base currency without recalculation.
-
-**ILS values warehoused but unused**: `amount_ils` and `exchange_rate_to_ils` from CSV are stored for reconciliation but no reconciliation reports exist yet.
+**ILS Values from CSV**: `amount_ils` and `exchange_rate_to_ils` are warehoused from the source CSV for reconciliation purposes but are NOT used in the original_currency → USD conversion. The conversion is direct via external API rates.
 
 ### Implementation Notes
 
 **When adding new reports**:
-- Use `amount_original` + `original_currency` for transaction-level detail
-- Use `amount_usd` for all summations, averages, metrics
-- Handle NULL `amount_usd` (missing exchange rates) with COALESCE or filters
+- Use `amount_original` + `original_currency` for transaction-level detail (lists, tables)
+- Use `amount_usd` for all summations, averages, and metrics calculations
+- COALESCE to 0 when aggregating to handle any NULL conversions gracefully
 
 **When adding currency features**:
 - USD base currency assumption is hardcoded in multiple locations
-- Changing base currency requires: exchange rate recalculation, metrics update, report query updates
+- Changing base currency requires: exchange rate recalculation, metrics updates, report query updates
 - Multi-currency reporting (e.g., "show in EUR") needs new conversion layer
-
-**When troubleshooting missing transactions in reports**:
-- Check if `amount_usd` is NULL (exchange rate conversion failed)
-- Verify exchange rate API connectivity and quota
-- Check `exchange_rates` table for missing date/currency pairs
+- Exchange rate API has three providers with automatic fallback (Frankfurter is free and requires no API key)
 
 ## Key Processes and Algorithms
 
