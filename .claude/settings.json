@@ -1,0 +1,41 @@
+{
+  "$schema": "https://docs.claude.com/schemas/settings.json",
+  "tools": {
+    "Bash": {
+      "allow": [
+        {
+          "command": "gh issue create:*",
+          "description": "Create GitHub issues"
+        },
+        {
+          "command": "gh issue close *",
+          "description": "Close GitHub issues with comments"
+        },
+        {
+          "command": "npm *",
+          "description": "Run npm commands (install, run, etc)"
+        },
+        {
+          "command": "npx *",
+          "description": "Run npx commands"
+        },
+        {
+          "command": "wrangler *",
+          "description": "Run wrangler CLI commands"
+        },
+        {
+          "command": "curl *",
+          "description": "Test API endpoints"
+        },
+        {
+          "command": "mkdir *",
+          "description": "Create directories"
+        },
+        {
+          "command": "git *",
+          "description": "Git operations (add, commit, push, status, etc)"
+        }
+      ]
+    }
+  }
+}

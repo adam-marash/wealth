@@ -70,7 +70,7 @@ app.get('/', (c) => {
     version: '1.0.0',
     endpoints: {
       health: '/api/health',
-      upload: '/api/upload (coming soon)',
+      upload: '/api/upload/parse-excel',
       configure: '/api/configure (coming soon)',
       reports: '/api/reports (coming soon)',
       investments: '/api/investments (coming soon)',
@@ -79,14 +79,15 @@ app.get('/', (c) => {
   });
 });
 
-// Future route imports will go here:
-// import upload from './routes/upload';
+// Import routes
+import upload from './routes/upload';
 // import configure from './routes/configure';
 // import reports from './routes/reports';
 // import investments from './routes/investments';
 // import settings from './routes/settings';
 
-// app.route('/api/upload', upload);
+// Mount routes
+app.route('/api/upload', upload);
 // app.route('/api/configure', configure);
 // app.route('/api/reports', reports);
 // app.route('/api/investments', investments);
