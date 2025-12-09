@@ -12,6 +12,10 @@
           "description": "Close GitHub issues with comments"
         },
         {
+          "command": "gh issue comment *",
+          "description": "Add comments to GitHub issues"
+        },
+        {
           "command": "npm *",
           "description": "Run npm commands (install, run, etc)"
         },

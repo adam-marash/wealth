@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS investments (
     name TEXT NOT NULL UNIQUE,  -- UNIQUE constraint for upsert support
     investment_group TEXT,  -- For rolling up related investments
     investment_type TEXT,   -- PE, VC, Real Estate, Public Equity, etc
+    product_type TEXT,      -- Product type from Excel (e.g., "אחזקה בחברת/שותפות נכס נדלן")
     initial_commitment REAL,
     committed_currency TEXT,
     commitment_date TEXT,   -- ISO 8601 date format
@@ -47,7 +48,9 @@ CREATE TABLE IF NOT EXISTS transactions (
     amount_original REAL NOT NULL,
     amount_normalized REAL NOT NULL,       -- After applying directionality rules
     original_currency TEXT,
-    amount_usd REAL,
+    amount_usd REAL,                       -- USD-normalized amount (calculated via API)
+    amount_ils REAL,                       -- ILS amount from Excel (for reconciliation)
+    exchange_rate_to_ils REAL,             -- Source currency → ILS rate from Excel
     investment_id INTEGER,
     counterparty TEXT,
     commitment_id INTEGER,                 -- Links to capital commitments
@@ -101,6 +104,17 @@ CREATE TABLE IF NOT EXISTS system_config (
     description TEXT,
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now'))
+);
+
+-- Exchange Rates: Cached exchange rates for USD normalization
+CREATE TABLE IF NOT EXISTS exchange_rates (
+    date TEXT NOT NULL,                    -- ISO 8601 date format
+    from_currency TEXT NOT NULL,           -- Source currency code (e.g., "EUR", "ILS")
+    to_currency TEXT NOT NULL,             -- Target currency code (e.g., "USD")
+    rate REAL NOT NULL,                    -- Exchange rate
+    source TEXT DEFAULT 'api',             -- Data source (api, manual, calculated)
+    created_at TEXT DEFAULT (datetime('now')),
+    PRIMARY KEY (date, from_currency, to_currency)
 );
 
 -- ============================================================================

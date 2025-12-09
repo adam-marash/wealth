@@ -30,6 +30,26 @@
     "mapped_field": "counterparty"
   },
   {
+    "excel_column_letter": "M",
+    "excel_column_name": "שער המרה לתנועה",
+    "mapped_field": "exchange_rate_to_ils"
+  },
+  {
+    "excel_column_letter": "N",
+    "excel_column_name": "סכום תנועה בש\"ח",
+    "mapped_field": "amount_ils"
+  },
+  {
+    "excel_column_letter": "D",
+    "excel_column_name": "סוג מוצר",
+    "mapped_field": "product_type"
+  },
+  {
+    "excel_column_letter": "I",
+    "excel_column_name": "סוג תנועה מורחב",
+    "mapped_field": "description"
+  },
+  {
     "excel_column_letter": "A",
     "excel_column_name": "לקוח אב",
     "mapped_field": "ignore"
@@ -45,28 +65,8 @@
     "mapped_field": "ignore"
   },
   {
-    "excel_column_letter": "D",
-    "excel_column_name": "סוג מוצר",
-    "mapped_field": "category"
-  },
-  {
     "excel_column_letter": "F",
     "excel_column_name": "מספר חשבון",
-    "mapped_field": "ignore"
-  },
-  {
-    "excel_column_letter": "I",
-    "excel_column_name": "סוג תנועה מורחב",
-    "mapped_field": "description"
-  },
-  {
-    "excel_column_letter": "M",
-    "excel_column_name": "שער המרה לתנועה",
-    "mapped_field": "ignore"
-  },
-  {
-    "excel_column_letter": "N",
-    "excel_column_name": "סכום תנועה בש\"ח",
     "mapped_field": "ignore"
   }
 ]
