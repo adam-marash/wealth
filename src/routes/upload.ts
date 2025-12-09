@@ -1,28 +1,38 @@
 /**
  * Upload Routes
- * Handles Excel file uploads and parsing
+ * Handles CSV file uploads and parsing
  */
 
 import { Hono } from 'hono';
 import type { Env, ApiResponse } from '../types';
 import {
-  parseExcelFile,
-  validateExcelFile,
-  type ParseExcelResult,
-} from '../services/excel-parser';
+  parseCSVFile,
+  validateCSVFile,
+  parseCSVData,
+  type ParsedCSV,
+} from '../services/csv-parser';
 import { previewTransactions, type PreviewResult } from '../services/preview';
 import { importTransactions, type ImportTransaction, type ImportSummary, type ImportOptions } from '../services/import';
+import {
+  discoverInvestments,
+  createInvestments,
+  type InvestmentDiscoveryResult,
+  type InvestmentTriplet,
+} from '../services/investment-discovery';
+import {
+  importTransactions as importTransactionsStatic,
+  type TransactionImportResult,
+} from '../services/transaction-import';
 
 const upload = new Hono<{ Bindings: Env }>();
 
 /**
- * POST /api/upload/parse-excel
- * Parse Excel file and return column information with samples
+ * POST /api/upload/parse-csv
+ * Parse CSV file and return column information with samples
  *
  * Body: multipart/form-data with 'file' field
- * Optional query param: ?sheetIndex=0 (to specify which sheet to parse)
  */
-upload.post('/parse-excel', async (c) => {
+upload.post('/parse-csv', async (c) => {
   try {
     // Get the uploaded file from form data
     const formData = await c.req.formData();
@@ -32,16 +42,16 @@ upload.post('/parse-excel', async (c) => {
       return c.json<ApiResponse>({
         success: false,
         error: 'No file uploaded',
-        message: 'Please provide an Excel file in the "file" field',
+        message: 'Please provide a CSV file in the "file" field',
       }, 400);
     }
 
     // Validate file extension
-    if (!validateExcelFile(file.name)) {
+    if (!validateCSVFile(file.name)) {
       return c.json<ApiResponse>({
         success: false,
         error: 'Invalid file type',
-        message: 'Please upload a valid Excel file (.xlsx, .xls, .xlsm, .xlsb)',
+        message: 'Please upload a valid CSV file (.csv)',
       }, 400);
     }
 
@@ -55,27 +65,23 @@ upload.post('/parse-excel', async (c) => {
       }, 400);
     }
 
-    // Get optional sheet index from query params
-    const sheetIndexParam = c.req.query('sheetIndex');
-    const sheetIndex = sheetIndexParam ? parseInt(sheetIndexParam, 10) : undefined;
-
     // Convert file to ArrayBuffer
     const arrayBuffer = await file.arrayBuffer();
 
-    // Parse the Excel file
-    const result: ParseExcelResult = parseExcelFile(arrayBuffer, sheetIndex);
+    // Parse the CSV file
+    const result: ParsedCSV = parseCSVFile(arrayBuffer);
 
-    return c.json<ApiResponse<ParseExcelResult>>({
+    return c.json<ApiResponse<ParsedCSV>>({
       success: true,
-      message: 'Excel file parsed successfully',
+      message: 'CSV file parsed successfully',
       data: result,
     });
 
   } catch (error) {
-    console.error('Error parsing Excel file:', error);
+    console.error('Error parsing CSV file:', error);
     return c.json<ApiResponse>({
       success: false,
-      error: 'Failed to parse Excel file',
+      error: 'Failed to parse CSV file',
       message: error instanceof Error ? error.message : 'Unknown error occurred',
     }, 500);
   }
@@ -87,7 +93,6 @@ upload.post('/parse-excel', async (c) => {
  *
  * Body: multipart/form-data with 'file' field
  * Query params:
- * - sheetIndex=0: Specify which sheet to parse
  * - dry_run=true: Explicitly mark as dry run (preview is always non-destructive)
  */
 upload.post('/preview', async (c) => {
@@ -100,16 +105,16 @@ upload.post('/preview', async (c) => {
       return c.json<ApiResponse>({
         success: false,
         error: 'No file uploaded',
-        message: 'Please provide an Excel file in the "file" field',
+        message: 'Please provide a CSV file in the "file" field',
       }, 400);
     }
 
     // Validate file extension
-    if (!validateExcelFile(file.name)) {
+    if (!validateCSVFile(file.name)) {
       return c.json<ApiResponse>({
         success: false,
         error: 'Invalid file type',
-        message: 'Please upload a valid Excel file (.xlsx, .xls, .xlsm, .xlsb)',
+        message: 'Please upload a valid CSV file (.csv)',
       }, 400);
     }
 
@@ -123,9 +128,7 @@ upload.post('/preview', async (c) => {
       }, 400);
     }
 
-    // Get optional sheet index and dry_run from query params
-    const sheetIndexParam = c.req.query('sheetIndex');
-    const sheetIndex = sheetIndexParam ? parseInt(sheetIndexParam, 10) : undefined;
+    // Get dry_run from query params
     const dryRun = c.req.query('dry_run') === 'true';
 
     // Convert file to ArrayBuffer
@@ -135,7 +138,7 @@ upload.post('/preview', async (c) => {
     const result: PreviewResult = await previewTransactions(
       c.env.DB,
       arrayBuffer,
-      sheetIndex,
+      undefined,
       c.env
     );
 
@@ -276,6 +279,188 @@ upload.post('/commit', async (c) => {
 });
 
 /**
+ * POST /api/upload/discover-investments
+ * Phase 1: Discover investments in uploaded CSV file
+ *
+ * Body: multipart/form-data with 'file' field
+ */
+upload.post('/discover-investments', async (c) => {
+  try {
+    // Get the uploaded file from form data
+    const formData = await c.req.formData();
+    const file = formData.get('file');
+
+    if (!file || !(file instanceof File)) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'No file uploaded',
+        message: 'Please provide a CSV file in the "file" field',
+      }, 400);
+    }
+
+    // Validate file extension
+    if (!validateCSVFile(file.name)) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Invalid file type',
+        message: 'Please upload a valid CSV file (.csv)',
+      }, 400);
+    }
+
+    // Check file size (max 10MB)
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (file.size > maxSize) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'File too large',
+        message: `File size must be less than ${maxSize / 1024 / 1024}MB`,
+      }, 400);
+    }
+
+    // Convert file to ArrayBuffer
+    const arrayBuffer = await file.arrayBuffer();
+
+    // Parse CSV data
+    const parsedData = parseCSVData(arrayBuffer);
+
+    // Discover investments
+    const result: InvestmentDiscoveryResult = await discoverInvestments(
+      c.env.DB,
+      parsedData.rows
+    );
+
+    return c.json<ApiResponse<InvestmentDiscoveryResult>>({
+      success: true,
+      message: `Found ${result.totalFound} investments: ${result.stats.existing} existing, ${result.stats.new} new`,
+      data: result,
+    });
+
+  } catch (error) {
+    console.error('Error discovering investments:', error);
+    return c.json<ApiResponse>({
+      success: false,
+      error: 'Failed to discover investments',
+      message: error instanceof Error ? error.message : 'Unknown error occurred',
+    }, 500);
+  }
+});
+
+/**
+ * POST /api/upload/create-investments
+ * Phase 1b: Create new investments in the database
+ *
+ * Body: JSON array of investment triplets to create
+ * {
+ *   investments: InvestmentTriplet[]
+ * }
+ */
+upload.post('/create-investments', async (c) => {
+  try {
+    const body = await c.req.json<{
+      investments: InvestmentTriplet[];
+    }>();
+
+    const { investments } = body;
+
+    if (!Array.isArray(investments) || investments.length === 0) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Invalid input',
+        message: 'Investments must be a non-empty array',
+      }, 400);
+    }
+
+    // Create investments
+    const createdIds = await createInvestments(c.env.DB, investments);
+
+    return c.json<ApiResponse<{ created: number; ids: number[] }>>({
+      success: true,
+      message: `Created ${createdIds.length} new investments`,
+      data: {
+        created: createdIds.length,
+        ids: createdIds,
+      },
+    });
+
+  } catch (error) {
+    console.error('Error creating investments:', error);
+    return c.json<ApiResponse>({
+      success: false,
+      error: 'Failed to create investments',
+      message: error instanceof Error ? error.message : 'Unknown error occurred',
+    }, 500);
+  }
+});
+
+/**
+ * POST /api/upload/import-transactions
+ * Phase 2: Import transactions from CSV file
+ *
+ * Body: multipart/form-data with 'file' field
+ */
+upload.post('/import-transactions', async (c) => {
+  try {
+    // Get the uploaded file from form data
+    const formData = await c.req.formData();
+    const file = formData.get('file');
+
+    if (!file || !(file instanceof File)) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'No file uploaded',
+        message: 'Please provide a CSV file in the "file" field',
+      }, 400);
+    }
+
+    // Validate file extension
+    if (!validateCSVFile(file.name)) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Invalid file type',
+        message: 'Please upload a valid CSV file (.csv)',
+      }, 400);
+    }
+
+    // Check file size (max 10MB)
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (file.size > maxSize) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'File too large',
+        message: `File size must be less than ${maxSize / 1024 / 1024}MB`,
+      }, 400);
+    }
+
+    // Convert file to ArrayBuffer
+    const arrayBuffer = await file.arrayBuffer();
+
+    // Parse CSV data
+    const parsedData = parseCSVData(arrayBuffer);
+
+    // Import transactions
+    const result: TransactionImportResult = await importTransactionsStatic(
+      c.env.DB,
+      parsedData.rows,
+      file.name
+    );
+
+    return c.json<ApiResponse<TransactionImportResult>>({
+      success: true,
+      message: `Import complete: ${result.imported} imported, ${result.skipped} skipped`,
+      data: result,
+    });
+
+  } catch (error) {
+    console.error('Error importing transactions:', error);
+    return c.json<ApiResponse>({
+      success: false,
+      error: 'Failed to import transactions',
+      message: error instanceof Error ? error.message : 'Unknown error occurred',
+    }, 500);
+  }
+});
+
+/**
  * GET /api/upload/test
  * Test endpoint to verify upload route is working
  */
@@ -285,9 +470,12 @@ upload.get('/test', (c) => {
     message: 'Upload route is working',
     data: {
       availableEndpoints: [
-        'POST /api/upload/parse-excel - Parse Excel file and extract columns',
+        'POST /api/upload/parse-csv - Parse CSV file and extract columns',
         'POST /api/upload/preview - Preview transactions with normalization and dedup',
         'POST /api/upload/commit - Commit transactions to database',
+        'POST /api/upload/discover-investments - Phase 1: Discover investments in CSV',
+        'POST /api/upload/create-investments - Phase 1b: Create new investments',
+        'POST /api/upload/import-transactions - Phase 2: Import transactions from CSV',
       ],
     },
   });
