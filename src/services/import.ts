@@ -277,29 +277,9 @@ export async function importTransactions(
     }
   }
 
-  // After successful import, detect phases for affected investments
-  if (summary.imported > 0) {
-    // Get unique investment IDs from imported transactions
-    const investmentIds = new Set<number>();
-    for (const { transaction } of toImport) {
-      const investment_id = await resolveInvestmentId(db, transaction.normalized.investment_slug);
-      if (investment_id) {
-        investmentIds.add(investment_id);
-      }
-    }
-
-    // Update phase for each affected investment
-    // Import phase detection function
-    const { updateInvestmentPhase } = await import('./commitment-tracker.js');
-    for (const investmentId of investmentIds) {
-      try {
-        await updateInvestmentPhase(db, investmentId);
-      } catch (error) {
-        // Log but don't fail the import if phase detection fails
-        console.warn(`Failed to update phase for investment ${investmentId}:`, error);
-      }
-    }
-  }
+  // TODO: Phase detection auto-update after import
+  // Phase is now manually set in investment edit form
+  // Could re-implement phase detection logic here in the future if needed
 
   return summary;
 }
