@@ -205,8 +205,11 @@ Process during import:
 - Cache (2024-01-15, ILS, USD, 0.27) for next ILS transaction on same date
 
 **Base Currency**: USD (system_config: `currency_base='USD'`)
+- System assumes USD for all analysis by design
+- No currency preference setting - switching base currency requires recalculation across exchange rates, metrics, and report queries
 
 **ILS Values from CSV**: `amount_ils` and `exchange_rate_to_ils` are warehoused from the source CSV for reconciliation purposes but are NOT used in the original_currency → USD conversion. The conversion is direct via external API rates.
+- **Reconciliation reports do not exist yet** - these values are stored for future reconciliation features
 
 ### Implementation Notes
 
