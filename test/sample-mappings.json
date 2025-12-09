@@ -1,0 +1,72 @@
+[
+  {
+    "excel_column_letter": "E",
+    "excel_column_name": "תאור",
+    "mapped_field": "investment_name"
+  },
+  {
+    "excel_column_letter": "H",
+    "excel_column_name": "סוג תנועה",
+    "mapped_field": "transaction_type"
+  },
+  {
+    "excel_column_letter": "J",
+    "excel_column_name": "תאריך התנועה",
+    "mapped_field": "date"
+  },
+  {
+    "excel_column_letter": "K",
+    "excel_column_name": "סכום תנועה במטבע",
+    "mapped_field": "amount"
+  },
+  {
+    "excel_column_letter": "L",
+    "excel_column_name": "מטבע התנועה",
+    "mapped_field": "currency"
+  },
+  {
+    "excel_column_letter": "G",
+    "excel_column_name": "גוף מנהל",
+    "mapped_field": "counterparty"
+  },
+  {
+    "excel_column_letter": "A",
+    "excel_column_name": "לקוח אב",
+    "mapped_field": "ignore"
+  },
+  {
+    "excel_column_letter": "B",
+    "excel_column_name": "מנהל לקוח",
+    "mapped_field": "ignore"
+  },
+  {
+    "excel_column_letter": "C",
+    "excel_column_name": "שייכות",
+    "mapped_field": "ignore"
+  },
+  {
+    "excel_column_letter": "D",
+    "excel_column_name": "סוג מוצר",
+    "mapped_field": "category"
+  },
+  {
+    "excel_column_letter": "F",
+    "excel_column_name": "מספר חשבון",
+    "mapped_field": "ignore"
+  },
+  {
+    "excel_column_letter": "I",
+    "excel_column_name": "סוג תנועה מורחב",
+    "mapped_field": "description"
+  },
+  {
+    "excel_column_letter": "M",
+    "excel_column_name": "שער המרה לתנועה",
+    "mapped_field": "ignore"
+  },
+  {
+    "excel_column_letter": "N",
+    "excel_column_name": "סכום תנועה בש\"ח",
+    "mapped_field": "ignore"
+  }
+]

@@ -71,7 +71,12 @@ app.get('/', (c) => {
     endpoints: {
       health: '/api/health',
       upload: '/api/upload/parse-excel',
-      configure: '/api/configure (coming soon)',
+      configure: {
+        columns: 'POST /api/configure/columns',
+        saveMappings: 'POST /api/configure/save-mappings',
+        getMappings: 'GET /api/configure/mappings',
+        status: 'GET /api/configure/status',
+      },
       reports: '/api/reports (coming soon)',
       investments: '/api/investments (coming soon)',
       settings: '/api/settings (coming soon)',
@@ -81,14 +86,14 @@ app.get('/', (c) => {
 
 // Import routes
 import upload from './routes/upload';
-// import configure from './routes/configure';
+import configure from './routes/configure';
 // import reports from './routes/reports';
 // import investments from './routes/investments';
 // import settings from './routes/settings';
 
 // Mount routes
 app.route('/api/upload', upload);
-// app.route('/api/configure', configure);
+app.route('/api/configure', configure);
 // app.route('/api/reports', reports);
 // app.route('/api/investments', investments);
 // app.route('/api/settings', settings);

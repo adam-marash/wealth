@@ -1,0 +1,328 @@
+{
+    "success": true,
+    "message": "Excel file parsed successfully",
+    "data": {
+        "sheets": [
+            {
+                "sheetName": "\u05db\u05dc \u05d4\u05e8\u05e9\u05d5\u05de\u05d5\u05ea-1",
+                "columns": [
+                    {
+                        "letter": "A",
+                        "name": "\u05dc\u05e7\u05d5\u05d7 \u05d0\u05d1",
+                        "samples": [
+                            "\u05ea\u05de\u05e8 \u05de\u05e8\u05e9",
+                            "\u05ea\u05de\u05e8 \u05de\u05e8\u05e9",
+                            "\u05ea\u05de\u05e8 \u05de\u05e8\u05e9",
+                            "\u05ea\u05de\u05e8 \u05de\u05e8\u05e9",
+                            "\u05ea\u05de\u05e8 \u05de\u05e8\u05e9"
+                        ]
+                    },
+                    {
+                        "letter": "B",
+                        "name": "\u05de\u05e0\u05d4\u05dc \u05dc\u05e7\u05d5\u05d7",
+                        "samples": [
+                            "\u05e2\u05e8\u05df \u05d1\u05dc\u05d8\u05de\u05df",
+                            "\u05e2\u05e8\u05df \u05d1\u05dc\u05d8\u05de\u05df",
+                            "\u05e2\u05e8\u05df \u05d1\u05dc\u05d8\u05de\u05df",
+                            "\u05e2\u05e8\u05df \u05d1\u05dc\u05d8\u05de\u05df",
+                            "\u05e2\u05e8\u05df \u05d1\u05dc\u05d8\u05de\u05df"
+                        ]
+                    },
+                    {
+                        "letter": "C",
+                        "name": "\u05e9\u05d9\u05d9\u05db\u05d5\u05ea",
+                        "samples": [
+                            "\u05ea\u05de\u05e8 \u05de\u05e8\u05e9",
+                            "\u05ea\u05de\u05e8 \u05de\u05e8\u05e9",
+                            "\u05ea\u05de\u05e8 \u05de\u05e8\u05e9",
+                            "\u05ea\u05de\u05e8 \u05de\u05e8\u05e9",
+                            "\u05ea\u05de\u05e8 \u05de\u05e8\u05e9"
+                        ]
+                    },
+                    {
+                        "letter": "D",
+                        "name": "\u05e1\u05d5\u05d2 \u05de\u05d5\u05e6\u05e8",
+                        "samples": [
+                            "\u05d0\u05d7\u05d6\u05e7\u05d4 \u05d1\u05d7\u05d1\u05e8\u05ea/\u05e9\u05d5\u05ea\u05e4\u05d5\u05ea \u05e0\u05db\u05e1 \u05e0\u05d3\u05dc\u05df",
+                            "\u05d0\u05d7\u05d6\u05e7\u05d4 \u05d1\u05d7\u05d1\u05e8\u05ea/\u05e9\u05d5\u05ea\u05e4\u05d5\u05ea \u05e0\u05db\u05e1 \u05e0\u05d3\u05dc\u05df",
+                            "\u05d0\u05d7\u05d6\u05e7\u05d4 \u05d1\u05d7\u05d1\u05e8\u05ea/\u05e9\u05d5\u05ea\u05e4\u05d5\u05ea \u05e0\u05db\u05e1 \u05e0\u05d3\u05dc\u05df",
+                            "\u05d0\u05d7\u05d6\u05e7\u05d4 \u05d1\u05d7\u05d1\u05e8\u05ea/\u05e9\u05d5\u05ea\u05e4\u05d5\u05ea \u05e0\u05db\u05e1 \u05e0\u05d3\u05dc\u05df",
+                            "\u05d0\u05d7\u05d6\u05e7\u05d4 \u05d1\u05d7\u05d1\u05e8\u05ea/\u05e9\u05d5\u05ea\u05e4\u05d5\u05ea \u05e0\u05db\u05e1 \u05e0\u05d3\u05dc\u05df"
+                        ]
+                    },
+                    {
+                        "letter": "E",
+                        "name": "\u05ea\u05d0\u05d5\u05e8",
+                        "samples": [
+                            "Faro-Point FRG-X",
+                            "Faro-Point FRG-X",
+                            "Faro-Point FRG-X",
+                            "Faro-Point FRG-X",
+                            "Faro-Point FRG-X"
+                        ]
+                    },
+                    {
+                        "letter": "F",
+                        "name": "\u05de\u05e1\u05e4\u05e8 \u05d7\u05e9\u05d1\u05d5\u05df",
+                        "samples": [
+                            "639M36167003",
+                            "639M36167003",
+                            "639M36167003",
+                            "639M36167003",
+                            "639M36167003"
+                        ]
+                    },
+                    {
+                        "letter": "G",
+                        "name": "\u05d2\u05d5\u05e3 \u05de\u05e0\u05d4\u05dc",
+                        "samples": [
+                            "\u05e4\u05d0\u05e8\u05d5\u05e4\u05d5\u05d9\u05e0\u05d8 FRG-X",
+                            "\u05e4\u05d0\u05e8\u05d5\u05e4\u05d5\u05d9\u05e0\u05d8 FRG-X",
+                            "\u05e4\u05d0\u05e8\u05d5\u05e4\u05d5\u05d9\u05e0\u05d8 FRG-X",
+                            "\u05e4\u05d0\u05e8\u05d5\u05e4\u05d5\u05d9\u05e0\u05d8 FRG-X",
+                            "\u05e4\u05d0\u05e8\u05d5\u05e4\u05d5\u05d9\u05e0\u05d8 FRG-X"
+                        ]
+                    },
+                    {
+                        "letter": "H",
+                        "name": "\u05e1\u05d5\u05d2 \u05ea\u05e0\u05d5\u05e2\u05d4",
+                        "samples": [
+                            "\u05de\u05e9\u05d9\u05db\u05ea \u05ea\u05e9\u05d5\u05d0\u05d4",
+                            "\u05de\u05e9\u05d9\u05db\u05ea \u05ea\u05e9\u05d5\u05d0\u05d4",
+                            "\u05de\u05e9\u05d9\u05db\u05ea \u05ea\u05e9\u05d5\u05d0\u05d4",
+                            "\u05de\u05e9\u05d9\u05db\u05ea \u05ea\u05e9\u05d5\u05d0\u05d4",
+                            "\u05de\u05e9\u05d9\u05db\u05ea \u05ea\u05e9\u05d5\u05d0\u05d4"
+                        ]
+                    },
+                    {
+                        "letter": "I",
+                        "name": "\u05e1\u05d5\u05d2 \u05ea\u05e0\u05d5\u05e2\u05d4 \u05de\u05d5\u05e8\u05d7\u05d1",
+                        "samples": [
+                            null,
+                            null,
+                            null,
+                            null,
+                            null
+                        ]
+                    },
+                    {
+                        "letter": "J",
+                        "name": "\u05ea\u05d0\u05e8\u05d9\u05da \u05d4\u05ea\u05e0\u05d5\u05e2\u05d4",
+                        "samples": [
+                            "31/03/2024",
+                            "31/10/2025",
+                            "04/05/2025",
+                            "31/07/2024",
+                            "31/12/2023"
+                        ]
+                    },
+                    {
+                        "letter": "K",
+                        "name": "\u05e1\u05db\u05d5\u05dd \u05ea\u05e0\u05d5\u05e2\u05d4 \u05d1\u05de\u05d8\u05d1\u05e2",
+                        "samples": [
+                            " 5,280 ",
+                            " 5,886 ",
+                            " 5,298 ",
+                            " 5,989 ",
+                            " 4,544 "
+                        ]
+                    },
+                    {
+                        "letter": "L",
+                        "name": "\u05de\u05d8\u05d1\u05e2 \u05d4\u05ea\u05e0\u05d5\u05e2\u05d4",
+                        "samples": [
+                            "$",
+                            "$",
+                            "$",
+                            "$",
+                            "$"
+                        ]
+                    },
+                    {
+                        "letter": "M",
+                        "name": "\u05e9\u05e2\u05e8 \u05d4\u05de\u05e8\u05d4 \u05dc\u05ea\u05e0\u05d5\u05e2\u05d4",
+                        "samples": [
+                            "3.681",
+                            "3.243",
+                            "3.614",
+                            "3.767",
+                            "3.627"
+                        ]
+                    },
+                    {
+                        "letter": "N",
+                        "name": "\u05e1\u05db\u05d5\u05dd \u05ea\u05e0\u05d5\u05e2\u05d4 \u05d1\u05e9\"\u05d7",
+                        "samples": [
+                            " 19,436 ",
+                            " 19,088 ",
+                            " 19,147 ",
+                            " 22,561 ",
+                            " 16,481 "
+                        ]
+                    }
+                ],
+                "rowCount": 123
+            }
+        ],
+        "selectedSheet": {
+            "sheetName": "\u05db\u05dc \u05d4\u05e8\u05e9\u05d5\u05de\u05d5\u05ea-1",
+            "columns": [
+                {
+                    "letter": "A",
+                    "name": "\u05dc\u05e7\u05d5\u05d7 \u05d0\u05d1",
+                    "samples": [
+                        "\u05ea\u05de\u05e8 \u05de\u05e8\u05e9",
+                        "\u05ea\u05de\u05e8 \u05de\u05e8\u05e9",
+                        "\u05ea\u05de\u05e8 \u05de\u05e8\u05e9",
+                        "\u05ea\u05de\u05e8 \u05de\u05e8\u05e9",
+                        "\u05ea\u05de\u05e8 \u05de\u05e8\u05e9"
+                    ]
+                },
+                {
+                    "letter": "B",
+                    "name": "\u05de\u05e0\u05d4\u05dc \u05dc\u05e7\u05d5\u05d7",
+                    "samples": [
+                        "\u05e2\u05e8\u05df \u05d1\u05dc\u05d8\u05de\u05df",
+                        "\u05e2\u05e8\u05df \u05d1\u05dc\u05d8\u05de\u05df",
+                        "\u05e2\u05e8\u05df \u05d1\u05dc\u05d8\u05de\u05df",
+                        "\u05e2\u05e8\u05df \u05d1\u05dc\u05d8\u05de\u05df",
+                        "\u05e2\u05e8\u05df \u05d1\u05dc\u05d8\u05de\u05df"
+                    ]
+                },
+                {
+                    "letter": "C",
+                    "name": "\u05e9\u05d9\u05d9\u05db\u05d5\u05ea",
+                    "samples": [
+                        "\u05ea\u05de\u05e8 \u05de\u05e8\u05e9",
+                        "\u05ea\u05de\u05e8 \u05de\u05e8\u05e9",
+                        "\u05ea\u05de\u05e8 \u05de\u05e8\u05e9",
+                        "\u05ea\u05de\u05e8 \u05de\u05e8\u05e9",
+                        "\u05ea\u05de\u05e8 \u05de\u05e8\u05e9"
+                    ]
+                },
+                {
+                    "letter": "D",
+                    "name": "\u05e1\u05d5\u05d2 \u05de\u05d5\u05e6\u05e8",
+                    "samples": [
+                        "\u05d0\u05d7\u05d6\u05e7\u05d4 \u05d1\u05d7\u05d1\u05e8\u05ea/\u05e9\u05d5\u05ea\u05e4\u05d5\u05ea \u05e0\u05db\u05e1 \u05e0\u05d3\u05dc\u05df",
+                        "\u05d0\u05d7\u05d6\u05e7\u05d4 \u05d1\u05d7\u05d1\u05e8\u05ea/\u05e9\u05d5\u05ea\u05e4\u05d5\u05ea \u05e0\u05db\u05e1 \u05e0\u05d3\u05dc\u05df",
+                        "\u05d0\u05d7\u05d6\u05e7\u05d4 \u05d1\u05d7\u05d1\u05e8\u05ea/\u05e9\u05d5\u05ea\u05e4\u05d5\u05ea \u05e0\u05db\u05e1 \u05e0\u05d3\u05dc\u05df",
+                        "\u05d0\u05d7\u05d6\u05e7\u05d4 \u05d1\u05d7\u05d1\u05e8\u05ea/\u05e9\u05d5\u05ea\u05e4\u05d5\u05ea \u05e0\u05db\u05e1 \u05e0\u05d3\u05dc\u05df",
+                        "\u05d0\u05d7\u05d6\u05e7\u05d4 \u05d1\u05d7\u05d1\u05e8\u05ea/\u05e9\u05d5\u05ea\u05e4\u05d5\u05ea \u05e0\u05db\u05e1 \u05e0\u05d3\u05dc\u05df"
+                    ]
+                },
+                {
+                    "letter": "E",
+                    "name": "\u05ea\u05d0\u05d5\u05e8",
+                    "samples": [
+                        "Faro-Point FRG-X",
+                        "Faro-Point FRG-X",
+                        "Faro-Point FRG-X",
+                        "Faro-Point FRG-X",
+                        "Faro-Point FRG-X"
+                    ]
+                },
+                {
+                    "letter": "F",
+                    "name": "\u05de\u05e1\u05e4\u05e8 \u05d7\u05e9\u05d1\u05d5\u05df",
+                    "samples": [
+                        "639M36167003",
+                        "639M36167003",
+                        "639M36167003",
+                        "639M36167003",
+                        "639M36167003"
+                    ]
+                },
+                {
+                    "letter": "G",
+                    "name": "\u05d2\u05d5\u05e3 \u05de\u05e0\u05d4\u05dc",
+                    "samples": [
+                        "\u05e4\u05d0\u05e8\u05d5\u05e4\u05d5\u05d9\u05e0\u05d8 FRG-X",
+                        "\u05e4\u05d0\u05e8\u05d5\u05e4\u05d5\u05d9\u05e0\u05d8 FRG-X",
+                        "\u05e4\u05d0\u05e8\u05d5\u05e4\u05d5\u05d9\u05e0\u05d8 FRG-X",
+                        "\u05e4\u05d0\u05e8\u05d5\u05e4\u05d5\u05d9\u05e0\u05d8 FRG-X",
+                        "\u05e4\u05d0\u05e8\u05d5\u05e4\u05d5\u05d9\u05e0\u05d8 FRG-X"
+                    ]
+                },
+                {
+                    "letter": "H",
+                    "name": "\u05e1\u05d5\u05d2 \u05ea\u05e0\u05d5\u05e2\u05d4",
+                    "samples": [
+                        "\u05de\u05e9\u05d9\u05db\u05ea \u05ea\u05e9\u05d5\u05d0\u05d4",
+                        "\u05de\u05e9\u05d9\u05db\u05ea \u05ea\u05e9\u05d5\u05d0\u05d4",
+                        "\u05de\u05e9\u05d9\u05db\u05ea \u05ea\u05e9\u05d5\u05d0\u05d4",
+                        "\u05de\u05e9\u05d9\u05db\u05ea \u05ea\u05e9\u05d5\u05d0\u05d4",
+                        "\u05de\u05e9\u05d9\u05db\u05ea \u05ea\u05e9\u05d5\u05d0\u05d4"
+                    ]
+                },
+                {
+                    "letter": "I",
+                    "name": "\u05e1\u05d5\u05d2 \u05ea\u05e0\u05d5\u05e2\u05d4 \u05de\u05d5\u05e8\u05d7\u05d1",
+                    "samples": [
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                    ]
+                },
+                {
+                    "letter": "J",
+                    "name": "\u05ea\u05d0\u05e8\u05d9\u05da \u05d4\u05ea\u05e0\u05d5\u05e2\u05d4",
+                    "samples": [
+                        "31/03/2024",
+                        "31/10/2025",
+                        "04/05/2025",
+                        "31/07/2024",
+                        "31/12/2023"
+                    ]
+                },
+                {
+                    "letter": "K",
+                    "name": "\u05e1\u05db\u05d5\u05dd \u05ea\u05e0\u05d5\u05e2\u05d4 \u05d1\u05de\u05d8\u05d1\u05e2",
+                    "samples": [
+                        " 5,280 ",
+                        " 5,886 ",
+                        " 5,298 ",
+                        " 5,989 ",
+                        " 4,544 "
+                    ]
+                },
+                {
+                    "letter": "L",
+                    "name": "\u05de\u05d8\u05d1\u05e2 \u05d4\u05ea\u05e0\u05d5\u05e2\u05d4",
+                    "samples": [
+                        "$",
+                        "$",
+                        "$",
+                        "$",
+                        "$"
+                    ]
+                },
+                {
+                    "letter": "M",
+                    "name": "\u05e9\u05e2\u05e8 \u05d4\u05de\u05e8\u05d4 \u05dc\u05ea\u05e0\u05d5\u05e2\u05d4",
+                    "samples": [
+                        "3.681",
+                        "3.243",
+                        "3.614",
+                        "3.767",
+                        "3.627"
+                    ]
+                },
+                {
+                    "letter": "N",
+                    "name": "\u05e1\u05db\u05d5\u05dd \u05ea\u05e0\u05d5\u05e2\u05d4 \u05d1\u05e9\"\u05d7",
+                    "samples": [
+                        " 19,436 ",
+                        " 19,088 ",
+                        " 19,147 ",
+                        " 22,561 ",
+                        " 16,481 "
+                    ]
+                }
+            ],
+            "rowCount": 123
+        }
+    }
+}
