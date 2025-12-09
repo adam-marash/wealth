@@ -199,38 +199,45 @@ reports.get('/commitments', async (c) => {
     const investment_id = c.req.query('investment_id');
     const phase = c.req.query('phase');
 
-    const conditions: string[] = [];
+    const conditions: string[] = ['i.commitment_amount_usd IS NOT NULL'];
     const params: any[] = [];
 
     if (investment_id) {
-      conditions.push('c.investment_id = ?');
+      conditions.push('i.id = ?');
       params.push(parseInt(investment_id, 10));
     }
 
     if (phase) {
-      conditions.push('c.phase = ?');
+      conditions.push('i.phase = ?');
       params.push(phase);
     }
 
-    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const whereClause = `WHERE ${conditions.join(' AND ')}`;
 
     const query = `
       SELECT
-        c.*,
+        i.id,
+        i.id as investment_id,
         i.name as investment_name,
         i.investment_type,
         i.investment_group,
-        (c.called_to_date / c.commitment_amount * 100) as percentage_called,
+        i.commitment_amount_usd as commitment_amount,
+        i.committed_currency as currency,
+        i.commitment_date,
+        i.called_to_date,
+        i.remaining,
+        i.phase,
+        i.commitment_notes as notes,
+        (i.called_to_date / NULLIF(i.commitment_amount_usd, 0) * 100) as percentage_called,
         CASE
-          WHEN c.remaining < 0 THEN 'overdrawn'
-          WHEN c.remaining = 0 THEN 'fully_called'
-          WHEN (c.remaining / c.commitment_amount * 100) < 10 THEN 'near_exhaustion'
+          WHEN i.remaining < 0 THEN 'overdrawn'
+          WHEN i.remaining = 0 THEN 'fully_called'
+          WHEN (i.remaining / NULLIF(i.commitment_amount_usd, 0) * 100) < 10 THEN 'near_exhaustion'
           ELSE 'normal'
         END as alert_status
-      FROM commitments c
-      INNER JOIN investments i ON c.investment_id = i.id
+      FROM investments i
       ${whereClause}
-      ORDER BY c.commitment_date DESC
+      ORDER BY i.commitment_date DESC
     `;
 
     const result = await c.env.DB.prepare(query).bind(...params).all();
@@ -239,7 +246,7 @@ reports.get('/commitments', async (c) => {
     const commitments = result.results;
     const summary = {
       total_commitments: commitments.length,
-      total_committed: commitments.reduce((sum: number, c: any) => sum + c.commitment_amount, 0),
+      total_committed: commitments.reduce((sum: number, c: any) => sum + (c.commitment_amount || 0), 0),
       total_called: commitments.reduce((sum: number, c: any) => sum + (c.called_to_date || 0), 0),
       total_remaining: commitments.reduce((sum: number, c: any) => sum + (c.remaining || 0), 0),
       overdrawn_count: commitments.filter((c: any) => c.alert_status === 'overdrawn').length,
@@ -416,10 +423,20 @@ reports.get('/investment/:id/summary', async (c) => {
       WHERE investment_id = ?
     `).bind(investment_id).first();
 
-    // Get commitments
-    const commitments = await c.env.DB.prepare(`
-      SELECT * FROM commitments WHERE investment_id = ? ORDER BY commitment_date DESC
-    `).bind(investment_id).all();
+    // Get commitment data from investment (now embedded in investment table)
+    // Return as array for backward compatibility with existing code
+    const investmentCommitment = investment.commitment_amount_usd ? [{
+      id: investment.id,
+      investment_id: investment.id,
+      commitment_amount: investment.commitment_amount_usd,
+      currency: investment.committed_currency,
+      commitment_date: investment.commitment_date,
+      called_to_date: investment.called_to_date,
+      remaining: investment.remaining,
+      phase: investment.phase,
+      notes: investment.commitment_notes,
+    }] : [];
+    const commitments = { results: investmentCommitment };
 
     // Get recent transactions
     const recentTransactions = await c.env.DB.prepare(`
@@ -511,14 +528,15 @@ reports.get('/dashboard', async (c) => {
       LEFT JOIN transactions t ON i.id = t.investment_id
     `).first();
 
-    // Get commitment stats
+    // Get commitment stats (now from investments table)
     const commitmentStats = await c.env.DB.prepare(`
       SELECT
         COUNT(*) as total_commitments,
-        COALESCE(SUM(commitment_amount), 0) as total_committed,
+        COALESCE(SUM(commitment_amount_usd), 0) as total_committed,
         COALESCE(SUM(called_to_date), 0) as total_called,
         COALESCE(SUM(remaining), 0) as total_remaining
-      FROM commitments
+      FROM investments
+      WHERE commitment_amount_usd IS NOT NULL
     `).first();
 
     // Get recent transactions
@@ -530,25 +548,25 @@ reports.get('/dashboard', async (c) => {
       LIMIT 10
     `).all();
 
-    // Get commitment alerts
+    // Get commitment alerts (now from investments table)
     const alerts = await c.env.DB.prepare(`
       SELECT
-        c.id,
-        c.investment_id,
+        i.id,
+        i.id as investment_id,
         i.name as investment_name,
-        c.commitment_amount,
-        c.called_to_date,
-        c.remaining,
-        (c.remaining / c.commitment_amount * 100) as remaining_percentage,
+        i.commitment_amount_usd as commitment_amount,
+        i.called_to_date,
+        i.remaining,
+        (i.remaining / NULLIF(i.commitment_amount_usd, 0) * 100) as remaining_percentage,
         CASE
-          WHEN c.remaining < 0 THEN 'overdrawn'
-          WHEN c.remaining = 0 THEN 'fully_called'
-          WHEN (c.remaining / c.commitment_amount * 100) < 10 THEN 'near_exhaustion'
+          WHEN i.remaining < 0 THEN 'overdrawn'
+          WHEN i.remaining = 0 THEN 'fully_called'
+          WHEN (i.remaining / NULLIF(i.commitment_amount_usd, 0) * 100) < 10 THEN 'near_exhaustion'
         END as alert_type
-      FROM commitments c
-      INNER JOIN investments i ON c.investment_id = i.id
-      WHERE c.remaining <= 0 OR (c.remaining / c.commitment_amount * 100) < 10
-      ORDER BY c.remaining ASC
+      FROM investments i
+      WHERE i.commitment_amount_usd IS NOT NULL
+        AND (i.remaining <= 0 OR (i.remaining / NULLIF(i.commitment_amount_usd, 0) * 100) < 10)
+      ORDER BY i.remaining ASC
     `).all();
 
     return c.json<ApiResponse>({
