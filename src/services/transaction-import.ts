@@ -235,7 +235,7 @@ export async function importTransactions(
       const insertResult = await db.prepare(insertQuery).bind(
         txData.date,
         txData.transactionType,
-        typeMapping.category,
+        typeMapping.slug,
         cashFlowDirection,
         txData.amount,
         amountNormalized,

@@ -1,0 +1,18 @@
+[
+  {
+    "raw_type": "משיכת תשואה",
+    "mapped_category": "distribution"
+  },
+  {
+    "raw_type": "משיכה",
+    "mapped_category": "distribution"
+  },
+  {
+    "raw_type": "הפקדה",
+    "mapped_category": "capital_call"
+  },
+  {
+    "raw_type": "עמלה",
+    "mapped_category": "fee"
+  }
+]

@@ -1,0 +1,32 @@
+{
+  "mappings": [
+    {
+      "excel_column_name": "תאור",
+      "mapped_field": "investment_name"
+    },
+    {
+      "excel_column_name": "גוף מנהל",
+      "mapped_field": "counterparty"
+    },
+    {
+      "excel_column_name": "סוג תנועה",
+      "mapped_field": "transaction_type"
+    },
+    {
+      "excel_column_name": "תאריך התנועה",
+      "mapped_field": "date"
+    },
+    {
+      "excel_column_name": "סכום תנועה במטבע",
+      "mapped_field": "amount"
+    },
+    {
+      "excel_column_name": "מטבע התנועה",
+      "mapped_field": "currency"
+    },
+    {
+      "excel_column_name": "סוג תנועה מורחב",
+      "mapped_field": "description"
+    }
+  ]
+}

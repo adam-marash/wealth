@@ -1,0 +1,18 @@
+[
+  {
+    "raw_value": "משיכת תשואה",
+    "category": "distribution"
+  },
+  {
+    "raw_value": "משיכה",
+    "category": "distribution"
+  },
+  {
+    "raw_value": "הפקדה",
+    "category": "capital_call"
+  },
+  {
+    "raw_value": "עמלה",
+    "category": "fee"
+  }
+]
