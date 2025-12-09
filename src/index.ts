@@ -95,7 +95,7 @@ import upload from './routes/upload';
 import configure from './routes/configure';
 import test from './routes/test';
 import commitments from './routes/commitments';
-// import reports from './routes/reports';
+import reports from './routes/reports';
 // import investments from './routes/investments';
 // import settings from './routes/settings';
 
@@ -104,7 +104,7 @@ app.route('/api/upload', upload);
 app.route('/api/configure', configure);
 app.route('/api/test', test);
 app.route('/api', commitments); // Commitments routes (includes /api/investments/:id/commitments and /api/commitments/:id)
-// app.route('/api/reports', reports);
+app.route('/api/reports', reports);
 // app.route('/api/investments', investments);
 // app.route('/api/settings', settings);
 
