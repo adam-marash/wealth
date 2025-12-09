@@ -444,7 +444,6 @@ export const dashboardHTML = `<!DOCTYPE html>
                 <tr>
                   <th>Date</th>
                   <th>Investment</th>
-                  <th>Counterparty</th>
                   <th>Type</th>
                   <th style={{textAlign:'right'}}>Amount</th>
                 </tr>
@@ -454,11 +453,10 @@ export const dashboardHTML = `<!DOCTYPE html>
                   <tr key={i}>
                     <td>{formatDate(tx.date)}</td>
                     <td>{tx.investment_name || '-'}</td>
-                    <td>{tx.counterparty}</td>
                     <td><span className={'badge ' + tx.transaction_category}>{tx.transaction_category.replace('_', ' ')}</span></td>
                     <td style={{textAlign:'right'}}>
                       <span className={'amount ' + (tx.cash_flow_direction === 'inflow' ? 'positive' : 'negative')}>
-                        {tx.cash_flow_direction === 'outflow' ? '-' : ''}{formatCurrency(tx.amount_usd)}
+                        {tx.cash_flow_direction === 'outflow' ? '-' : ''}{formatCurrency(tx.amount_original)} {tx.original_currency}
                       </span>
                     </td>
                   </tr>
@@ -516,9 +514,12 @@ export const dashboardHTML = `<!DOCTYPE html>
             body: formData,
           });
           const result = await response.json();
+          console.log('[DEBUG] Discovery API response:', result);
 
           if (result.success) {
+            console.log('[DEBUG] Setting discovery result:', result.data);
             setDiscoveryResult(result.data);
+            console.log('[DEBUG] Setting step to discovery');
             setStep('discovery');
           } else {
             setError(result.message || 'Failed to discover investments');
@@ -870,8 +871,8 @@ export const dashboardHTML = `<!DOCTYPE html>
                 {investments.map((inv, i) => (
                   <tr key={i}>
                     <td><strong>{inv.name}</strong></td>
-                    <td style={{fontFamily:'monospace',fontSize:'12px',color:'#666'}}>{inv.slug}</td>
-                    <td>{inv.investment_type || '-'}</td>
+                    <td style={{fontFamily:'monospace',fontSize:'12px',color:'#666'}}>{inv.slug || '-'}</td>
+                    <td>{inv.product_type || '-'}</td>
                     <td><span className="badge">{inv.status}</span></td>
                   </tr>
                 ))}

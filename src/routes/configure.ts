@@ -4,8 +4,8 @@
  */
 
 import { Hono } from 'hono';
-import type { Env, ApiResponse, ColumnMapping, CreateColumnMappingInput, ExcelColumn } from '../types';
-import { parseExcelFile } from '../services/excel-parser';
+import type { Env, ApiResponse, ColumnMapping, CreateColumnMappingInput } from '../types';
+import { parseCSVFile, type CSVColumn } from '../services/csv-parser';
 import {
   getExchangeRate,
   batchFetchExchangeRates,
@@ -14,17 +14,20 @@ import {
   currencySymbolToCode,
 } from '../services/exchange-rate';
 import {
+  generateSlug,
   generateUniqueSlug,
+  slugExists,
   mapInvestmentName,
   resolveInvestmentSlug,
   getInvestmentNameVariations,
 } from '../services/slug';
+import { suggestFieldForColumn, getConfidenceForSuggestion } from '../config/column-mapping-suggestions';
 
 const configure = new Hono<{ Bindings: Env }>();
 
 /**
  * POST /api/configure/columns
- * Step 1: Parse Excel and allow user to map columns to fields
+ * Step 1: Parse CSV and allow user to map columns to fields
  *
  * Body: multipart/form-data with 'file' field
  * Returns: Parsed columns with samples for user to map
@@ -39,20 +42,27 @@ configure.post('/columns', async (c) => {
       return c.json<ApiResponse>({
         success: false,
         error: 'No file uploaded',
-        message: 'Please provide an Excel file in the "file" field',
+        message: 'Please provide a CSV file in the "file" field',
       }, 400);
     }
 
-    // Parse the Excel file
+    // Parse the CSV file
     const arrayBuffer = await file.arrayBuffer();
-    const result = parseExcelFile(arrayBuffer);
+    const result = parseCSVFile(arrayBuffer);
+
+    // Add suggested mappings to each column
+    const columnsWithSuggestions = result.columns.map(column => ({
+      ...column,
+      suggestedField: suggestFieldForColumn(column.header),
+      confidence: getConfidenceForSuggestion(column.header),
+    }));
 
     // Return columns for user to map
-    return c.json<ApiResponse<{ columns: ExcelColumn[] }>>({
+    return c.json<ApiResponse<{ columns: (CSVColumn & { suggestedField: string; confidence?: string })[] }>>({
       success: true,
-      message: 'Columns extracted. Please map each column to a field.',
+      message: 'Columns extracted with intelligent mapping suggestions.',
       data: {
-        columns: result.selectedSheet?.columns || [],
+        columns: columnsWithSuggestions,
       },
     });
 
@@ -240,7 +250,7 @@ configure.get('/status', async (c) => {
 
 /**
  * POST /api/configure/transaction-types
- * Step 2: Extract unique transaction types from Excel file for classification
+ * Step 2: Extract unique transaction types from CSV file for classification
  *
  * Body: multipart/form-data with 'file' field
  * Returns: Unique transaction type values from the transaction_type column
@@ -255,19 +265,7 @@ configure.post('/transaction-types', async (c) => {
       return c.json<ApiResponse>({
         success: false,
         error: 'No file uploaded',
-        message: 'Please provide an Excel file in the "file" field',
-      }, 400);
-    }
-
-    // Parse the Excel file
-    const arrayBuffer = await file.arrayBuffer();
-    const result = parseExcelFile(arrayBuffer);
-
-    if (!result.selectedSheet) {
-      return c.json<ApiResponse>({
-        success: false,
-        error: 'No sheet found',
-        message: 'Could not find any sheet in the workbook',
+        message: 'Please provide a CSV file in the "file" field',
       }, 400);
     }
 
@@ -286,41 +284,60 @@ configure.post('/transaction-types', async (c) => {
       }, 400);
     }
 
-    // Find the column with transaction types
-    const transactionTypeColumn = result.selectedSheet.columns.find(
-      col => col.letter === mappings.excel_column_letter
-    );
+    // Parse CSV file to extract all unique transaction types
+    const arrayBuffer = await file.arrayBuffer();
+    const decoder = new TextDecoder('utf-8');
+    const text = decoder.decode(arrayBuffer);
+    const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
 
-    if (!transactionTypeColumn) {
+    if (lines.length === 0) {
       return c.json<ApiResponse>({
         success: false,
-        error: 'Transaction type column not found',
-        message: `Column ${mappings.excel_column_letter} not found in Excel file`,
+        error: 'CSV file is empty',
+        message: 'The uploaded CSV file contains no data',
       }, 400);
     }
 
-    // Convert to full data to extract all unique values (not just samples)
-    const arrayBuffer2 = await file.arrayBuffer();
-    const XLSX = await import('xlsx');
-    const workbook = XLSX.read(arrayBuffer2, { type: 'array' });
-    const worksheet = workbook.Sheets[workbook.SheetNames[0]!];
-    const data = XLSX.utils.sheet_to_json<unknown[]>(worksheet, {
-      header: 1,
-      defval: null,
-      blankrows: false,
-      raw: false,
-    });
+    // Parse CSV line respecting quoted fields
+    const parseCSVLine = (line: string): string[] => {
+      const result: string[] = [];
+      let current = '';
+      let inQuotes = false;
 
-    // Find column index
-    const colIndex = XLSX.utils.decode_col(mappings.excel_column_letter);
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        if (char === '"') {
+          if (inQuotes && line[i + 1] === '"') {
+            current += '"';
+            i++;
+          } else {
+            inQuotes = !inQuotes;
+          }
+        } else if (char === ',' && !inQuotes) {
+          result.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      result.push(current.trim());
+      return result;
+    };
+
+    // Convert column letter to index (A=0, B=1, etc.)
+    const columnLetter = mappings.excel_column_letter;
+    let colIndex = 0;
+    for (let i = 0; i < columnLetter.length; i++) {
+      colIndex = colIndex * 26 + (columnLetter.charCodeAt(i) - 65);
+    }
 
     // Extract unique values (skip header row)
     const uniqueTypes = new Set<string>();
-    for (let i = 1; i < data.length; i++) {
-      const row = data[i] as (string | number | null)[];
+    for (let i = 1; i < lines.length; i++) {
+      const row = parseCSVLine(lines[i]);
       const value = row[colIndex];
-      if (value !== null && value !== undefined && value !== '') {
-        uniqueTypes.add(String(value).trim());
+      if (value && value !== '') {
+        uniqueTypes.add(value.trim());
       }
     }
 
@@ -458,7 +475,7 @@ configure.get('/transaction-type-mappings', async (c) => {
 
 /**
  * POST /api/configure/investments
- * Step 3: Extract unique investment names from Excel file
+ * Step 3: Extract unique investment names from CSV file
  *
  * Body: multipart/form-data with 'file' field
  * Returns: Unique investment names from the investment_name column
@@ -473,7 +490,7 @@ configure.post('/investments', async (c) => {
       return c.json<ApiResponse>({
         success: false,
         error: 'No file uploaded',
-        message: 'Please provide an Excel file in the "file" field',
+        message: 'Please provide a CSV file in the "file" field',
       }, 400);
     }
 
@@ -492,28 +509,60 @@ configure.post('/investments', async (c) => {
       }, 400);
     }
 
-    // Parse Excel file to extract all unique investment names
+    // Parse CSV file to extract all unique investment names
     const arrayBuffer = await file.arrayBuffer();
-    const XLSX = await import('xlsx');
-    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-    const worksheet = workbook.Sheets[workbook.SheetNames[0]!];
-    const data = XLSX.utils.sheet_to_json<unknown[]>(worksheet, {
-      header: 1,
-      defval: null,
-      blankrows: false,
-      raw: false,
-    });
+    const decoder = new TextDecoder('utf-8');
+    const text = decoder.decode(arrayBuffer);
+    const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
 
-    // Find column index
-    const colIndex = XLSX.utils.decode_col(mappings.excel_column_letter);
+    if (lines.length === 0) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'CSV file is empty',
+        message: 'The uploaded CSV file contains no data',
+      }, 400);
+    }
+
+    // Parse CSV line respecting quoted fields
+    const parseCSVLine = (line: string): string[] => {
+      const result: string[] = [];
+      let current = '';
+      let inQuotes = false;
+
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        if (char === '"') {
+          if (inQuotes && line[i + 1] === '"') {
+            current += '"';
+            i++;
+          } else {
+            inQuotes = !inQuotes;
+          }
+        } else if (char === ',' && !inQuotes) {
+          result.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      result.push(current.trim());
+      return result;
+    };
+
+    // Convert column letter to index (A=0, B=1, etc.)
+    const columnLetter = mappings.excel_column_letter;
+    let colIndex = 0;
+    for (let i = 0; i < columnLetter.length; i++) {
+      colIndex = colIndex * 26 + (columnLetter.charCodeAt(i) - 65);
+    }
 
     // Extract unique values (skip header row)
     const uniqueInvestments = new Set<string>();
-    for (let i = 1; i < data.length; i++) {
-      const row = data[i] as (string | number | null)[];
+    for (let i = 1; i < lines.length; i++) {
+      const row = parseCSVLine(lines[i]);
       const value = row[colIndex];
-      if (value !== null && value !== undefined && value !== '') {
-        uniqueInvestments.add(String(value).trim());
+      if (value && value !== '') {
+        uniqueInvestments.add(value.trim());
       }
     }
 
@@ -556,6 +605,7 @@ configure.post('/save-investments', async (c) => {
   try {
     const investments = await c.req.json<Array<{
       name: string;
+      slug?: string; // Optional: operator can provide custom slug
       investment_group?: string;
       investment_type?: string;
       initial_commitment?: number;
@@ -572,12 +622,39 @@ configure.post('/save-investments', async (c) => {
       }, 400);
     }
 
-    // Generate unique slugs for each investment
+    // Generate or validate slugs for each investment
     const investmentsWithSlugs = await Promise.all(
-      investments.map(async (inv) => ({
-        ...inv,
-        slug: await generateUniqueSlug(c.env.DB, inv.name),
-      }))
+      investments.map(async (inv) => {
+        let slug: string;
+
+        if (inv.slug) {
+          // Operator provided custom slug - validate and ensure uniqueness
+          const cleanSlug = generateSlug(inv.slug); // Sanitize the provided slug
+
+          if (!cleanSlug) {
+            throw new Error(`Invalid slug provided for "${inv.name}": must contain alphanumeric characters`);
+          }
+
+          // Make unique if already exists
+          let finalSlug = cleanSlug;
+          let counter = 2;
+          while (await slugExists(c.env.DB, finalSlug)) {
+            const baseSlug = cleanSlug.replace(/-\d+$/, '');
+            finalSlug = `${baseSlug}-${counter}`;
+            counter++;
+          }
+
+          slug = finalSlug;
+        } else {
+          // Auto-generate slug with transliteration
+          slug = await generateUniqueSlug(c.env.DB, inv.name);
+        }
+
+        return {
+          ...inv,
+          slug,
+        };
+      })
     );
 
     // Insert or update investments
@@ -629,9 +706,10 @@ configure.post('/save-investments', async (c) => {
       success: true,
       message: `Successfully saved ${investments.length} investments with slugs`,
       data: {
-        investments: investmentsWithSlugs.map(inv => ({
+        investments: investmentsWithSlugs.map((inv, i) => ({
           name: inv.name,
           slug: inv.slug,
+          slug_was_custom: !!investments[i]?.slug, // Indicates if operator provided custom slug
         })),
       },
     });
@@ -659,6 +737,7 @@ configure.get('/investments-list', async (c) => {
         slug,
         investment_group,
         investment_type,
+        product_type,
         initial_commitment,
         committed_currency,
         commitment_date,
@@ -673,6 +752,7 @@ configure.get('/investments-list', async (c) => {
       slug: string | null;
       investment_group: string | null;
       investment_type: string | null;
+      product_type: string | null;
       initial_commitment: number | null;
       committed_currency: string | null;
       commitment_date: string | null;
