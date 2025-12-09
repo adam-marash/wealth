@@ -18,6 +18,16 @@ export interface ParseExcelResult {
 }
 
 /**
+ * Parsed sheet with full row data
+ */
+export interface ParsedSheetWithData {
+  sheetName: string;
+  headerRow: number;
+  headers: string[];
+  rows: Record<string, any>[];
+}
+
+/**
  * Parse Excel file and extract column information with samples
  * @param fileBuffer - Excel file as ArrayBuffer
  * @param sheetIndex - Optional: specific sheet index to parse (0-based)
@@ -208,4 +218,87 @@ export function parseDateValue(value: unknown): string | null {
 export function validateExcelFile(filename: string): boolean {
   const validExtensions = ['.xlsx', '.xls', '.xlsm', '.xlsb'];
   return validExtensions.some(ext => filename.toLowerCase().endsWith(ext));
+}
+
+/**
+ * Parse Excel file and extract full row data
+ * Used for transaction preview and import
+ *
+ * @param fileBuffer - Excel file as ArrayBuffer
+ * @param sheetIndex - Optional: specific sheet index to parse (0-based)
+ * @returns Parsed sheet with full row data
+ */
+export function parseExcelData(
+  fileBuffer: ArrayBuffer,
+  sheetIndex?: number
+): ParsedSheetWithData {
+  // Read the workbook from buffer
+  const workbook = XLSX.read(fileBuffer, {
+    type: 'array',
+    cellDates: true,
+    cellFormula: false,
+    cellStyles: false,
+  });
+
+  // Get all sheet names
+  const sheetNames = workbook.SheetNames;
+
+  if (sheetNames.length === 0) {
+    throw new Error('No sheets found in workbook');
+  }
+
+  // Determine which sheet to parse
+  const targetIndex = sheetIndex !== undefined ? sheetIndex : 0;
+  const sheetName = sheetNames[targetIndex];
+
+  if (!sheetName) {
+    throw new Error(`Sheet at index ${targetIndex} not found`);
+  }
+
+  const worksheet = workbook.Sheets[sheetName];
+
+  if (!worksheet) {
+    throw new Error(`Worksheet ${sheetName} not found`);
+  }
+
+  // Convert to array of arrays
+  const data = XLSX.utils.sheet_to_json<any[]>(worksheet, {
+    header: 1, // Return array of arrays (not objects)
+    defval: null, // Use null for empty cells
+    blankrows: false, // Skip blank rows
+  });
+
+  if (data.length === 0) {
+    throw new Error('Worksheet contains no data');
+  }
+
+  // Detect header row
+  const headerRowIndex = detectHeaderRow(data);
+  const headerRow = data[headerRowIndex] as (string | number | null)[];
+
+  // Extract headers as strings
+  const headers = headerRow.map(h => (h !== null && h !== undefined ? String(h) : ''));
+
+  // Extract data rows (after header)
+  const dataRows = data.slice(headerRowIndex + 1);
+
+  // Convert rows to objects using headers as keys
+  const rows = dataRows.map(row => {
+    const rowObj: Record<string, any> = {};
+    for (let i = 0; i < headers.length; i++) {
+      const header = headers[i];
+      const value = row[i];
+      if (header) {
+        rowObj[header] = value;
+      }
+    }
+    return rowObj;
+  });
+
+  return {
+    sheetName,
+    headerRow: headerRowIndex,
+    headers,
+    rows,
+  };
 }
