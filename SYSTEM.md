@@ -110,12 +110,14 @@ Intelligent suggestions for Hebrew/English column names with confidence levels (
 **Process**:
 1. Parse CSV using static Hebrew column mappings
 2. Extract transaction rows with required fields
-3. Look up investment ID by name
+3. **Look up investment ID by exact name match** (see "Slug Infrastructure Status" below)
 4. Map Hebrew transaction type → slug + directionality
 5. Apply directionality rules to normalize amount
 6. Generate deduplication hash: `SHA256(date|amount|investment_name|counterparty)`
 7. Insert with `ON CONFLICT(dedup_hash) DO NOTHING`
 8. Return: imported count, skipped count, errors
+
+**IMPORTANT**: Investment lookup uses exact name matching, not slug-based matching. See "Slug Infrastructure Status" section.
 
 ### CSV Parsing
 **File**: `src/services/csv-parser.ts`
@@ -123,19 +125,124 @@ Intelligent suggestions for Hebrew/English column names with confidence levels (
 - Supports UTF-8 with BOM detection
 - Max file size: 10MB
 
+## Currency Handling: Display vs. Analysis
+
+### Core Principle
+**Display in original currencies, analyze in USD.**
+
+### Transaction Storage
+Each transaction stores multiple currency representations:
+- `amount_original` (REAL): Original amount from CSV in source currency
+- `original_currency` (TEXT): Currency code (USD, ILS, EUR, etc.)
+- `amount_normalized` (REAL): After applying directionality rules, in source currency
+- `amount_usd` (REAL): USD-converted amount via exchange rate API
+- `amount_ils` (REAL): ILS amount from CSV (warehoused for reconciliation)
+- `exchange_rate_to_ils` (REAL): Original exchange rate from CSV
+
+### Display Rules (Transaction Lists)
+**File**: `src/dashboardHTML.ts:481`
+
+Transaction lists show original currencies with symbols:
+```javascript
+{getCurrencySymbol(tx.original_currency)}{formatNumber(tx.amount_original)} {tx.original_currency}
+// Example output: "₪15,000 ILS" or "$10,000 USD"
+```
+
+**Why**: Users need to see the actual transaction amounts as they appeared in source documents for:
+- Verification against source files
+- Reconciliation with statements
+- Understanding which currency account was affected
+
+### Analysis Rules (Summaries, Metrics, Reports)
+**Files**: `src/routes/reports.ts`, `src/calculations/metrics.ts`
+
+All aggregate calculations use `amount_usd`:
+```sql
+-- Cash flow reports (reports.ts:333-334)
+SUM(CASE WHEN transaction_category = 'deposit' THEN ABS(amount_usd) ELSE 0 END) as capital_calls_usd
+SUM(CASE WHEN transaction_category IN (...) THEN ABS(amount_usd) ELSE 0 END) as distributions_usd
+
+-- Investment summaries (reports.ts:415-416)
+COALESCE(SUM(CASE WHEN ... THEN ABS(amount_usd) ELSE 0 END), 0) as total_called_usd
+COALESCE(SUM(CASE WHEN ... THEN ABS(amount_usd) ELSE 0 END), 0) as total_distributed_usd
+```
+
+Metrics functions receive USD-normalized totals:
+```typescript
+// metrics.ts:140-143
+function calculateAllMetrics(
+  totalCalled: number,      // In USD
+  totalDistributed: number, // In USD
+  residualValue?: number    // In USD
+)
+```
+
+**Why**: Portfolio analysis requires consistent currency for:
+- MOIC, DPI, RVPI, TVPI calculations
+- Cross-investment comparisons
+- Portfolio-level aggregation
+- IRR/XIRR calculations (time-value of money requires single currency)
+
+### Exchange Rate Conversion
+**File**: `src/services/exchange-rate.ts`
+
+During import:
+1. Parse `original_currency` from CSV
+2. Map symbol to ISO code: $ → USD, ₪ → ILS, € → EUR
+3. Query `exchange_rates` table for date + currency pair
+4. If not cached, fetch from external API (requires `EXCHANGE_RATE_API_KEY`)
+5. Convert: `amount_usd = amount_normalized * rate`
+6. Cache rate for future transactions
+
+**Base Currency**: USD (system_config: `currency_base='USD'`)
+
+### Current Limitations
+
+**Missing USD conversion**: If exchange rate unavailable, `amount_usd` is NULL:
+- Transaction imports successfully (warehouses original amount)
+- Transaction appears in lists (shows original currency)
+- Transaction excluded from portfolio metrics (SUM ignores NULLs)
+- Warning logged but no user notification
+
+**No currency preference setting**: System assumes USD for analysis. Cannot switch base currency without recalculation.
+
+**ILS values warehoused but unused**: `amount_ils` and `exchange_rate_to_ils` from CSV are stored for reconciliation but no reconciliation reports exist yet.
+
+### Implementation Notes
+
+**When adding new reports**:
+- Use `amount_original` + `original_currency` for transaction-level detail
+- Use `amount_usd` for all summations, averages, metrics
+- Handle NULL `amount_usd` (missing exchange rates) with COALESCE or filters
+
+**When adding currency features**:
+- USD base currency assumption is hardcoded in multiple locations
+- Changing base currency requires: exchange rate recalculation, metrics update, report query updates
+- Multi-currency reporting (e.g., "show in EUR") needs new conversion layer
+
+**When troubleshooting missing transactions in reports**:
+- Check if `amount_usd` is NULL (exchange rate conversion failed)
+- Verify exchange rate API connectivity and quota
+- Check `exchange_rates` table for missing date/currency pairs
+
 ## Key Processes and Algorithms
 
-### Slug Generation
+### Slug Generation (UNUSED - See Below)
 **File**: `src/services/slug.ts`
 1. Transliterate Hebrew → Latin characters (א→a, ב→b, etc.)
 2. Lowercase, remove non-alphanumeric (except hyphens)
 3. Replace spaces with hyphens, collapse multiple hyphens
 4. Examples: "Faro-Point FRG-X" → "faro-point-frg-x"
 
-### Investment Name Resolution
+**NOTE**: This infrastructure exists but is not used in production import flow.
+
+### Investment Name Resolution (THEORETICAL - Not Implemented)
+**File**: `src/services/slug.ts`
 1. Check `investment_name_mappings` (raw_name → slug)
 2. Check `investments` (name → slug)
 3. Return null if not found (flags for manual mapping)
+
+**NOTE**: This is the designed behavior, but it's not used in the actual import flow.
 
 ### Date Parsing
 **File**: `src/services/normalize.ts`
@@ -160,6 +267,99 @@ Auto-detection: If first number > 12, assumes DD/MM/YYYY
 - Check cached rates in database
 - Fetch from external API if missing (requires env.EXCHANGE_RATE_API_KEY)
 - Cache for future use
+
+## Slug Infrastructure Status
+
+### Executive Summary
+**The slug system is NOT operational.** While extensive infrastructure exists (`investments.slug`, `investment_name_mappings` table, `src/services/slug.ts`), it is **not used in the production import flow**. Investment lookups use exact name matching.
+
+### What Exists (But Is Unused)
+
+**Database Schema**:
+- `investments.slug` (TEXT, UNIQUE): Intended for canonical identifiers
+- `investment_name_mappings` table: Maps raw names → slugs
+- Indexes: `idx_investments_slug_unique`, `idx_name_mappings_raw_name`, `idx_name_mappings_slug`
+
+**Code Infrastructure**:
+- `src/services/slug.ts`: Complete slug generation and resolution logic
+  - `generateSlug()`: Hebrew transliteration, normalization
+  - `resolveInvestmentSlug()`: 2-step lookup (mappings → investments)
+  - `mapInvestmentName()`: Create name variation mappings
+  - `batchResolveInvestmentSlugs()`: Batch resolution
+  - `generateUniqueSlug()`: Collision avoidance
+
+### What Actually Happens in Production
+
+**Investment Creation** (`src/services/investment-discovery.ts:159-162`):
+```sql
+INSERT INTO investments (name, product_type, status)
+VALUES (?, ?, 'active')
+```
+- **Slug field is left NULL**
+- No slug generation occurs
+- No name mappings are created
+
+**Transaction Import** (`src/services/transaction-import.ts:144-167`):
+```typescript
+const investmentsQuery = await db.prepare('SELECT id, name FROM investments').all();
+const investmentMap = new Map<string, number>();
+for (const inv of investmentsQuery.results) {
+  investmentMap.set(inv.name as string, inv.id as number);
+}
+// Later:
+const investmentId = investmentMap.get(txData.investmentName);
+```
+- **Direct exact name match** - no slug lookup
+- `investment_name_mappings` table is never queried
+- `investments.slug` is never read
+
+**Deduplication Hash** (claims to use slug but doesn't):
+- `src/services/deduplication.ts:33` documents hash as `date|amount|investment_slug`
+- `src/services/transaction-import.ts:204-209` actually generates: `date|amount|investmentName|counterparty`
+- **Uses raw investment name, not slug**
+
+### Database Reality Check
+```sql
+SELECT id, name, slug FROM investments LIMIT 5;
+-- Result:
+-- 85 | Serviced Apartments, Vienna           | NULL
+-- 86 | אלקטרה בי. טי. אר 1 - Electra BTR       | NULL
+-- 87 | בית מרס                                | NULL
+```
+All production investments have NULL slugs.
+
+### The Problem
+**Name variations are not handled.** If CSV files have:
+- File 1: "Electra BTR"
+- File 2: "אלקטרה בי. טי. אר 1 - Electra BTR"
+- File 3: "Electra B.T.R."
+
+These create **three separate investments** instead of linking to one canonical investment.
+
+### Why It Exists
+The slug system was designed to handle:
+1. Hebrew/English name variations
+2. Spelling inconsistencies across CSV files
+3. Multi-script investment names (Hebrew + English)
+4. Whitespace and punctuation differences
+
+### Options for Future Work
+1. **Remove infrastructure**: Delete slug fields, tables, service files, indexes
+2. **Implement properly**:
+   - Generate slugs in `createInvestments()`
+   - Use slug resolution in `importTransactions()`
+   - Populate `investment_name_mappings` during discovery
+   - Update deduplication to actually use slugs
+3. **Keep as-is**: Accept exact name matching requirement (current state)
+
+### Files Affected
+If implementing or removing slug system:
+- `schema.sql`: `investments.slug`, `investment_name_mappings` table, indexes
+- `src/services/slug.ts`: Entire file
+- `src/services/investment-discovery.ts`: `createInvestments()` function
+- `src/services/transaction-import.ts`: Investment lookup logic, deduplication
+- `src/services/deduplication.ts`: Hash generation
+- `src/services/normalize.ts`: `resolveInvestmentSlug()` call (line 399-401)
 
 ## Metrics and Calculations
 
