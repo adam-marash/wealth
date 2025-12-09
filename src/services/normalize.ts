@@ -1,10 +1,11 @@
 /**
  * Data Normalization Service
- * Handles normalization of dates, amounts, and counterparty names
+ * Handles normalization of dates, amounts, counterparty names, and investment slugs
  */
 
 import type { Env } from '../types';
 import { getExchangeRate, currencySymbolToCode } from './exchange-rate';
+import { resolveInvestmentSlug } from './slug';
 
 /**
  * Date normalization result
@@ -339,6 +340,7 @@ export interface TransactionRow {
   currency?: string;
   transaction_type?: string;
   counterparty?: string;
+  investment_name?: string;
   exchange_rate_to_ils?: string | number;
   amount_ils?: string | number;
   [key: string]: any;
@@ -353,6 +355,8 @@ export interface NormalizedTransaction {
   transaction_category: string | null;
   cash_flow_direction: number | null;
   counterparty_normalized: string | null;
+  investment_name: string | null;
+  investment_slug: string | null;
   exchange_rate_to_ils: number | null;
   amount_ils: number | null;
 }
@@ -390,6 +394,12 @@ export async function normalizeTransactionRow(
   // Normalize counterparty
   const counterpartyNormalized = await normalizeCounterparty(db, row.counterparty || null);
 
+  // Resolve investment slug
+  const investmentName = row.investment_name?.trim() || null;
+  const investmentSlug = investmentName
+    ? await resolveInvestmentSlug(db, investmentName)
+    : null;
+
   // Parse ILS fields
   const exchangeRateToIls = parseAmount(row.exchange_rate_to_ils);
   const amountIls = parseAmount(row.amount_ils);
@@ -403,6 +413,8 @@ export async function normalizeTransactionRow(
     transaction_category: category,
     cash_flow_direction: direction,
     counterparty_normalized: counterpartyNormalized,
+    investment_name: investmentName,
+    investment_slug: investmentSlug,
     exchange_rate_to_ils: exchangeRateToIls,
     amount_ils: amountIls,
   };

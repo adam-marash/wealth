@@ -13,6 +13,12 @@ import {
   getExchangeRatesForDate,
   currencySymbolToCode,
 } from '../services/exchange-rate';
+import {
+  generateUniqueSlug,
+  mapInvestmentName,
+  resolveInvestmentSlug,
+  getInvestmentNameVariations,
+} from '../services/slug';
 
 const configure = new Hono<{ Bindings: Env }>();
 
@@ -542,6 +548,9 @@ configure.post('/investments', async (c) => {
  *     status: "active"
  *   }
  * ]
+ *
+ * IMPORTANT: This endpoint now generates unique slugs for each investment
+ * and creates initial name mappings (canonical name → slug)
  */
 configure.post('/save-investments', async (c) => {
   try {
@@ -563,18 +572,28 @@ configure.post('/save-investments', async (c) => {
       }, 400);
     }
 
+    // Generate unique slugs for each investment
+    const investmentsWithSlugs = await Promise.all(
+      investments.map(async (inv) => ({
+        ...inv,
+        slug: await generateUniqueSlug(c.env.DB, inv.name),
+      }))
+    );
+
     // Insert or update investments
     const insertStmt = c.env.DB.prepare(`
       INSERT INTO investments (
         name,
+        slug,
         investment_group,
         investment_type,
         initial_commitment,
         committed_currency,
         commitment_date,
         status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(name) DO UPDATE SET
+        slug = excluded.slug,
         investment_group = excluded.investment_group,
         investment_type = excluded.investment_type,
         initial_commitment = excluded.initial_commitment,
@@ -584,9 +603,10 @@ configure.post('/save-investments', async (c) => {
         updated_at = datetime('now')
     `);
 
-    const batch = investments.map(inv =>
+    const batch = investmentsWithSlugs.map(inv =>
       insertStmt.bind(
         inv.name,
+        inv.slug,
         inv.investment_group || null,
         inv.investment_type || null,
         inv.initial_commitment || null,
@@ -598,9 +618,22 @@ configure.post('/save-investments', async (c) => {
 
     await c.env.DB.batch(batch);
 
+    // Create initial name mappings (canonical name → slug)
+    const mappingBatch = investmentsWithSlugs.map(inv =>
+      mapInvestmentName(c.env.DB, inv.name, inv.slug)
+    );
+
+    await Promise.all(mappingBatch);
+
     return c.json<ApiResponse>({
       success: true,
-      message: `Successfully saved ${investments.length} investments`,
+      message: `Successfully saved ${investments.length} investments with slugs`,
+      data: {
+        investments: investmentsWithSlugs.map(inv => ({
+          name: inv.name,
+          slug: inv.slug,
+        })),
+      },
     });
 
   } catch (error) {
@@ -615,7 +648,7 @@ configure.post('/save-investments', async (c) => {
 
 /**
  * GET /api/configure/investments-list
- * Get all investments
+ * Get all investments with their slugs and name variations
  */
 configure.get('/investments-list', async (c) => {
   try {
@@ -623,6 +656,7 @@ configure.get('/investments-list', async (c) => {
       SELECT
         id,
         name,
+        slug,
         investment_group,
         investment_type,
         initial_commitment,
@@ -636,6 +670,7 @@ configure.get('/investments-list', async (c) => {
     `).all<{
       id: number;
       name: string;
+      slug: string | null;
       investment_group: string | null;
       investment_type: string | null;
       initial_commitment: number | null;
@@ -656,6 +691,175 @@ configure.get('/investments-list', async (c) => {
     return c.json<ApiResponse>({
       success: false,
       error: 'Failed to fetch investments',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    }, 500);
+  }
+});
+
+/**
+ * POST /api/configure/map-investment-name
+ * Map a raw investment name (variation) to a canonical slug
+ *
+ * Body: { raw_name: "פארופוינט FRG-X", slug: "faro-point-frg-x" }
+ *
+ * Use cases:
+ * - During data review: map unmapped names to existing investments
+ * - Manual correction: fix mis-mapped names
+ * - Multi-script handling: map Hebrew/English variations to same slug
+ */
+configure.post('/map-investment-name', async (c) => {
+  try {
+    const { raw_name, slug } = await c.req.json<{
+      raw_name: string;
+      slug: string;
+    }>();
+
+    if (!raw_name || !slug) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Missing required fields',
+        message: 'raw_name and slug are required',
+      }, 400);
+    }
+
+    // Verify the slug exists in investments table
+    const investment = await c.env.DB.prepare(`
+      SELECT name FROM investments WHERE slug = ?
+    `).bind(slug).first<{ name: string }>();
+
+    if (!investment) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Invalid slug',
+        message: `No investment found with slug "${slug}"`,
+      }, 400);
+    }
+
+    // Create the mapping
+    await mapInvestmentName(c.env.DB, raw_name, slug);
+
+    return c.json<ApiResponse>({
+      success: true,
+      message: `Mapped "${raw_name}" → "${slug}" (${investment.name})`,
+    });
+
+  } catch (error) {
+    console.error('Error mapping investment name:', error);
+    return c.json<ApiResponse>({
+      success: false,
+      error: 'Failed to map investment name',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    }, 500);
+  }
+});
+
+/**
+ * GET /api/configure/investment-variations/:slug
+ * Get all name variations mapped to a specific slug
+ *
+ * Params: slug (investment slug)
+ * Returns: Array of raw names mapped to this slug
+ */
+configure.get('/investment-variations/:slug', async (c) => {
+  try {
+    const slug = c.req.param('slug');
+
+    if (!slug) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Missing slug parameter',
+        message: 'Please provide a slug',
+      }, 400);
+    }
+
+    // Verify slug exists
+    const investment = await c.env.DB.prepare(`
+      SELECT name FROM investments WHERE slug = ?
+    `).bind(slug).first<{ name: string }>();
+
+    if (!investment) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Invalid slug',
+        message: `No investment found with slug "${slug}"`,
+      }, 404);
+    }
+
+    // Get all variations
+    const variations = await getInvestmentNameVariations(c.env.DB, slug);
+
+    return c.json<ApiResponse<{ canonical_name: string; variations: string[] }>>({
+      success: true,
+      data: {
+        canonical_name: investment.name,
+        variations,
+      },
+      message: `Found ${variations.length} name variation(s) for "${investment.name}"`,
+    });
+
+  } catch (error) {
+    console.error('Error fetching investment variations:', error);
+    return c.json<ApiResponse>({
+      success: false,
+      error: 'Failed to fetch investment variations',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    }, 500);
+  }
+});
+
+/**
+ * POST /api/configure/resolve-investment-slug
+ * Resolve a raw investment name to its canonical slug
+ * Useful for testing the resolution logic
+ *
+ * Body: { raw_name: "Faro-Point FRG-X" }
+ * Returns: { slug: "faro-point-frg-x" } or { slug: null } if unmapped
+ */
+configure.post('/resolve-investment-slug', async (c) => {
+  try {
+    const { raw_name } = await c.req.json<{ raw_name: string }>();
+
+    if (!raw_name) {
+      return c.json<ApiResponse>({
+        success: false,
+        error: 'Missing required field',
+        message: 'raw_name is required',
+      }, 400);
+    }
+
+    const slug = await resolveInvestmentSlug(c.env.DB, raw_name);
+
+    if (slug) {
+      // Get canonical name
+      const investment = await c.env.DB.prepare(`
+        SELECT name FROM investments WHERE slug = ?
+      `).bind(slug).first<{ name: string }>();
+
+      return c.json<ApiResponse<{ raw_name: string; slug: string; canonical_name: string }>>({
+        success: true,
+        data: {
+          raw_name,
+          slug,
+          canonical_name: investment?.name || slug,
+        },
+        message: `Resolved "${raw_name}" → "${slug}"`,
+      });
+    } else {
+      return c.json<ApiResponse<{ raw_name: string; slug: null }>>({
+        success: true,
+        data: {
+          raw_name,
+          slug: null,
+        },
+        message: `"${raw_name}" is not mapped. Flag for review.`,
+      });
+    }
+
+  } catch (error) {
+    console.error('Error resolving investment slug:', error);
+    return c.json<ApiResponse>({
+      success: false,
+      error: 'Failed to resolve investment slug',
       message: error instanceof Error ? error.message : 'Unknown error',
     }, 500);
   }
