@@ -5,10 +5,11 @@
   "main": "src/index.ts",
   "scripts": {
     "dev": "wrangler dev",
+    "dev:fresh": "npm run db:migrate:local && wrangler dev",
     "deploy": "wrangler deploy",
     "db:local": "wrangler d1 execute transactions_db --local --command",
     "db:remote": "wrangler d1 execute transactions_db --remote --command",
-    "db:migrate:local": "wrangler d1 execute transactions_db --local --file=./schema.sql",
+    "db:migrate:local": "wrangler d1 execute transactions_db --local --file=./schema.sql --persist-to ./.db",
     "db:migrate:remote": "wrangler d1 execute transactions_db --remote --file=./schema.sql",
     "type-check": "tsc --noEmit"
   },

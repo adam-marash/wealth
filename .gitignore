@@ -5,6 +5,7 @@ package-lock.json
 # Wrangler local state
 .wrangler/
 .dev.vars
+.db/
 
 # Environment files
 .env

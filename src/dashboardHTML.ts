@@ -15,15 +15,19 @@ export const dashboardHTML = `<!DOCTYPE html>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Wealth Management Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      font-family: 'JetBrains Mono', monospace;
       background: #f5f5f5;
       color: #333;
+      font-size: 15px;
     }
     .app-shell { display: flex; min-height: 100vh; }
     .sidebar {
@@ -82,21 +86,21 @@ export const dashboardHTML = `<!DOCTYPE html>
       box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     }
     .card-title {
-      font-size: 14px;
+      font-size: 11px;
       color: #666;
       margin-bottom: 10px;
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
     .card-value {
-      font-size: 32px;
+      font-size: 24px;
       font-weight: 600;
       margin-bottom: 5px;
     }
     .card-value.positive { color: #10b981; }
     .card-value.negative { color: #ef4444; }
     .card-subtitle {
-      font-size: 13px;
+      font-size: 11px;
       color: #999;
     }
     .widget {
@@ -129,34 +133,73 @@ export const dashboardHTML = `<!DOCTYPE html>
       text-align: left;
       padding: 10px;
       border-bottom: 2px solid #eee;
-      font-size: 13px;
+      font-size: 15px;
       color: #666;
       font-weight: 600;
     }
     .transactions-table td {
       padding: 12px 10px;
       border-bottom: 1px solid #f5f5f5;
-      font-size: 14px;
+      font-size: 16px;
     }
     .transactions-table tr:hover { background: #fafafa; }
+    .clickable-row {
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .clickable-row:hover {
+      background: #f0f9ff !important;
+    }
+    .filter-bar {
+      margin-bottom: 20px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .filter-bar select {
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+      min-width: 200px;
+    }
+    .filter-bar button {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 4px;
+      background: #6b7280;
+      color: white;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .filter-bar button:hover {
+      background: #4b5563;
+    }
     .badge {
       display: inline-block;
       padding: 4px 8px;
       border-radius: 4px;
-      font-size: 12px;
       font-weight: 500;
     }
-    .badge.distribution {
+    .badge.income-distribution {
       background: #dcfce7;
       color: #166534;
     }
-    .badge.capital_call {
+    .badge.withdrawal {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+    .badge.deposit {
       background: #fee2e2;
       color: #991b1b;
     }
-    .badge.fee {
+    .badge.management-fee {
       background: #fef3c7;
       color: #92400e;
+    }
+    .badge.unrealized-gain-loss {
+      background: #f3e8ff;
+      color: #6b21a8;
     }
     .amount { font-variant-numeric: tabular-nums; }
     .amount.positive { color: #10b981; }
@@ -374,7 +417,7 @@ export const dashboardHTML = `<!DOCTYPE html>
 
     const getTransactionTypeDisplay = (slug) => TRANSACTION_TYPE_DISPLAY[slug] || slug;
 
-    const formatDate = (dateStr) => new Intl.DateTimeFormat('en-US', {
+    const formatDate = (dateStr) => new Intl.DateTimeFormat('en-GB', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -442,6 +485,14 @@ export const dashboardHTML = `<!DOCTYPE html>
 
       const { overview, recent_transactions } = data;
 
+      const netPositionSubtitle = 'Called ' + formatCurrency(overview.total_called) +
+        ' - Distributed ' + formatCurrency(overview.total_distributed) +
+        ' (Capital ' + formatCurrency(overview.capital_returned) +
+        ' + Income ' + formatCurrency(overview.income_distributed) + ')';
+
+      const stockSubtitle = 'Deposits ' + formatCurrency(overview.stock_deposits) +
+        ' - Withdrawals ' + formatCurrency(overview.stock_distributions);
+
       return (
         <>
           <div className="header">
@@ -449,13 +500,11 @@ export const dashboardHTML = `<!DOCTYPE html>
             <p>Portfolio overview and recent activity</p>
           </div>
           <div className="dashboard-grid">
-            <MetricCard title="Total Called" value={formatCurrency(overview.total_called)}
-              subtitle={overview.total_investments + ' investments'} />
-            <MetricCard title="Total Distributed" value={formatCurrency(overview.total_distributed)}
-              subtitle={overview.total_transactions + ' transactions'} type="positive" />
             <MetricCard title="Net Position" value={formatCurrency(overview.net_position)}
-              subtitle="Called - Distributed" type={overview.net_position >= 0 ? 'negative' : 'positive'} />
-            <MetricCard title="Active Investments" value={overview.active_investments} />
+              subtitle={netPositionSubtitle}
+              type={overview.net_position >= 0 ? 'negative' : 'positive'} />
+            <MetricCard title="Stock Portfolios Net" value={formatCurrency(overview.stock_net_position)}
+              subtitle={stockSubtitle} />
           </div>
           <div className="widget">
             <div className="widget-header">
@@ -490,25 +539,48 @@ export const dashboardHTML = `<!DOCTYPE html>
       );
     }
 
-    function TransactionsPage() {
+    function TransactionsPage({ filterInvestmentId = null }) {
       const [loading, setLoading] = useState(true);
       const [transactions, setTransactions] = useState([]);
+      const [investments, setInvestments] = useState([]);
+      const [selectedInvestmentId, setSelectedInvestmentId] = useState(filterInvestmentId);
       const [editingTransaction, setEditingTransaction] = useState(null);
       const [deletingTransaction, setDeletingTransaction] = useState(null);
 
       const loadTransactions = () => {
         setLoading(true);
-        fetch('/api/reports/transactions?pageSize=100')
+        const url = selectedInvestmentId
+          ? '/api/reports/transactions?pageSize=1000&investment_id=' + selectedInvestmentId
+          : '/api/reports/transactions?pageSize=1000';
+        fetch(url)
           .then(res => res.json())
           .then(result => {
-            if (result.success) setTransactions(result.data.items);
+            if (result.success) {
+              setTransactions(result.data.items);
+            }
             setLoading(false);
           });
       };
 
+      const loadInvestments = () => {
+        fetch('/api/configure/investments-list')
+          .then(res => res.json())
+          .then(result => {
+            if (result.success) setInvestments(result.data);
+          });
+      };
+
+      useEffect(() => {
+        loadInvestments();
+      }, []);
+
+      useEffect(() => {
+        setSelectedInvestmentId(filterInvestmentId);
+      }, [filterInvestmentId]);
+
       useEffect(() => {
         loadTransactions();
-      }, []);
+      }, [selectedInvestmentId]);
 
       const handleEdit = (transaction) => {
         setEditingTransaction({...transaction});
@@ -556,11 +628,29 @@ export const dashboardHTML = `<!DOCTYPE html>
 
       if (loading) return <div className="loading">Loading...</div>;
 
+      const selectedInvestment = selectedInvestmentId
+        ? investments.find(inv => inv.id === parseInt(selectedInvestmentId))
+        : null;
+
       return (
         <>
           <div className="header">
             <h2>Transactions</h2>
-            <p>{transactions.length} transactions</p>
+            <p>{transactions.length} transactions{selectedInvestment ? ' for ' + selectedInvestment.name : ''}</p>
+          </div>
+          <div className="filter-bar">
+            <select
+              value={selectedInvestmentId || ''}
+              onChange={(e) => setSelectedInvestmentId(e.target.value)}
+            >
+              <option value="">All Investments</option>
+              {investments.map(inv => (
+                <option key={inv.id} value={inv.id}>{inv.name}</option>
+              ))}
+            </select>
+            {selectedInvestmentId && (
+              <button onClick={() => setSelectedInvestmentId(null)}>Clear Filter</button>
+            )}
           </div>
           <div className="widget">
             <table className="transactions-table">
@@ -755,6 +845,34 @@ export const dashboardHTML = `<!DOCTYPE html>
         }
       };
 
+      const clearTables = async () => {
+        if (!confirm('Are you sure you want to clear all transactions and investments? This cannot be undone.')) {
+          return;
+        }
+        setLoading(true);
+        setError(null);
+
+        try {
+          const response = await fetch('/api/upload/clear-tables', {
+            method: 'POST',
+          });
+          const result = await response.json();
+
+          if (result.success) {
+            setFile(null);
+            setStep('upload');
+            setDiscoveryResult(null);
+            setImportResult(null);
+          } else {
+            setError(result.message || 'Failed to clear tables');
+          }
+        } catch (err) {
+          setError('Failed to clear tables: ' + err.message);
+        } finally {
+          setLoading(false);
+        }
+      };
+
       const importTransactions = async () => {
         if (!file) return;
         setLoading(true);
@@ -787,9 +905,14 @@ export const dashboardHTML = `<!DOCTYPE html>
       if (step === 'upload') {
         return (
           <>
-            <div className="header">
-              <h2>Upload Transactions</h2>
-              <p>Upload a CSV file to import transactions</p>
+            <div className="header" style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start'}}>
+              <div>
+                <h2>Upload Transactions</h2>
+                <p>Upload a CSV file to import transactions</p>
+              </div>
+              <button className="btn btn-danger" onClick={clearTables} disabled={loading} style={{marginTop:'10px'}}>
+                Clear All Data
+              </button>
             </div>
 
             {error && <div className="error">{error}</div>}
@@ -1029,11 +1152,15 @@ export const dashboardHTML = `<!DOCTYPE html>
       return null;
     }
 
-    function InvestmentsPage() {
+    function InvestmentsPage({ onNavigate }) {
       const [loading, setLoading] = useState(true);
       const [investments, setInvestments] = useState([]);
       const [editingInvestment, setEditingInvestment] = useState(null);
       const [deletingInvestment, setDeletingInvestment] = useState(null);
+
+      const handleRowClick = (investmentId) => {
+        onNavigate('transactions', investmentId);
+      };
 
       const loadInvestments = () => {
         setLoading(true);
@@ -1066,7 +1193,7 @@ export const dashboardHTML = `<!DOCTYPE html>
               initial_commitment: editingInvestment.initial_commitment,
               committed_currency: editingInvestment.committed_currency,
               commitment_date: editingInvestment.commitment_date,
-              commitment_amount_usd: editingInvestment.commitment_amount_usd,
+              // commitment_amount_usd is now calculated automatically by the backend
               phase: editingInvestment.phase,
               manual_phase: editingInvestment.manual_phase,
               commitment_notes: editingInvestment.commitment_notes,
@@ -1116,18 +1243,24 @@ export const dashboardHTML = `<!DOCTYPE html>
                   <th>Name</th>
                   <th>Slug</th>
                   <th>Type</th>
+                  <th>Commitment</th>
                   <th>Status</th>
                   <th style={{width: '120px'}}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {investments.map((inv, i) => (
-                  <tr key={i}>
+                  <tr key={i} className="clickable-row" onClick={() => handleRowClick(inv.id)}>
                     <td><strong>{inv.name}</strong></td>
                     <td style={{fontFamily:'monospace',fontSize:'12px',color:'#666'}}>{inv.slug || '-'}</td>
                     <td>{inv.product_type || '-'}</td>
-                    <td><span className="badge">{inv.status}</span></td>
                     <td>
+                      {inv.initial_commitment && inv.committed_currency
+                        ? formatNumber(inv.initial_commitment) + ' ' + inv.committed_currency
+                        : '-'}
+                    </td>
+                    <td><span className="badge">{inv.status}</span></td>
+                    <td onClick={(e) => e.stopPropagation()}>
                       <button className="btn-small" onClick={() => handleEdit(inv)} style={{marginRight:'5px'}}>Edit</button>
                       <button className="btn-small btn-danger" onClick={() => setDeletingInvestment(inv)}>Delete</button>
                     </td>
@@ -1210,27 +1343,17 @@ export const dashboardHTML = `<!DOCTYPE html>
                       />
                     </div>
                   </div>
-                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'15px',marginBottom:'15px'}}>
-                    <div>
-                      <label style={{display:'block',marginBottom:'5px'}}>Commitment Date:</label>
-                      <input
-                        type="date"
-                        value={editingInvestment.commitment_date || ''}
-                        onChange={(e) => setEditingInvestment({...editingInvestment, commitment_date: e.target.value})}
-                        style={{width:'100%',padding:'8px',border:'1px solid #ddd',borderRadius:'4px'}}
-                      />
-                    </div>
-                    <div>
-                      <label style={{display:'block',marginBottom:'5px'}}>Amount (USD):</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={editingInvestment.commitment_amount_usd || ''}
-                        onChange={(e) => setEditingInvestment({...editingInvestment, commitment_amount_usd: parseFloat(e.target.value) || null})}
-                        placeholder="For USD summing"
-                        style={{width:'100%',padding:'8px',border:'1px solid #ddd',borderRadius:'4px'}}
-                      />
-                    </div>
+                  <div style={{marginBottom:'15px'}}>
+                    <label style={{display:'block',marginBottom:'5px'}}>Commitment Date:</label>
+                    <input
+                      type="date"
+                      value={editingInvestment.commitment_date || ''}
+                      onChange={(e) => setEditingInvestment({...editingInvestment, commitment_date: e.target.value})}
+                      style={{width:'100%',padding:'8px',border:'1px solid #ddd',borderRadius:'4px'}}
+                    />
+                  </div>
+                  <div style={{marginBottom:'15px',padding:'10px',background:'#f0f9ff',borderRadius:'4px',fontSize:'13px',color:'#666'}}>
+                    <strong>Note:</strong> USD value will be calculated automatically based on the commitment amount, currency, and date.
                   </div>
                   <div style={{marginBottom:'15px'}}>
                     <label style={{display:'block',marginBottom:'5px'}}>Phase:</label>
@@ -1294,15 +1417,22 @@ export const dashboardHTML = `<!DOCTYPE html>
 
     function App() {
       const [currentPage, setCurrentPage] = useState('dashboard');
+      const [filterInvestmentId, setFilterInvestmentId] = useState(null);
+
+      const handleNavigate = (page, investmentId = null) => {
+        setCurrentPage(page);
+        setFilterInvestmentId(investmentId);
+      };
+
       let content;
-      if (currentPage === 'transactions') content = <TransactionsPage />;
-      else if (currentPage === 'investments') content = <InvestmentsPage />;
+      if (currentPage === 'transactions') content = <TransactionsPage filterInvestmentId={filterInvestmentId} />;
+      else if (currentPage === 'investments') content = <InvestmentsPage onNavigate={handleNavigate} />;
       else if (currentPage === 'upload') content = <UploadPage />;
       else content = <Dashboard />;
 
       return (
         <div className="app-shell">
-          <Sidebar currentPage={currentPage} onNavigate={setCurrentPage} />
+          <Sidebar currentPage={currentPage} onNavigate={handleNavigate} />
           <div className="main-content">{content}</div>
         </div>
       );

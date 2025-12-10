@@ -7,6 +7,7 @@ import { Hono } from 'hono';
 import type { Env, ApiResponse } from '../types';
 import { calculateXIRR, transactionsToCashFlows } from '../calculations/irr';
 import { calculateAllMetrics } from '../calculations/metrics';
+import { getOpenCommitmentsSummary } from '../services/commitment-tracker';
 
 const reports = new Hono<{ Bindings: Env }>();
 
@@ -135,9 +136,9 @@ reports.get('/portfolio-position', async (c) => {
         i.investment_group,
         i.status,
         COALESCE(SUM(CASE WHEN t.transaction_category = 'deposit' THEN ABS(t.amount_normalized) ELSE 0 END), 0) as total_called,
-        COALESCE(SUM(CASE WHEN t.transaction_category IN ('income-distribution', 'withdrawal', 'capital-return') THEN ABS(t.amount_normalized) ELSE 0 END), 0) as total_distributed,
+        COALESCE(SUM(CASE WHEN t.transaction_category IN ('income-distribution', 'withdrawal') THEN ABS(t.amount_normalized) ELSE 0 END), 0) as total_distributed,
         COALESCE(SUM(CASE WHEN t.transaction_category = 'deposit' THEN ABS(t.amount_usd) ELSE 0 END), 0) as total_called_usd,
-        COALESCE(SUM(CASE WHEN t.transaction_category IN ('income-distribution', 'withdrawal', 'capital-return') THEN ABS(t.amount_usd) ELSE 0 END), 0) as total_distributed_usd,
+        COALESCE(SUM(CASE WHEN t.transaction_category IN ('income-distribution', 'withdrawal') THEN ABS(t.amount_usd) ELSE 0 END), 0) as total_distributed_usd,
         COUNT(t.id) as transaction_count,
         MIN(t.date) as first_transaction_date,
         MAX(t.date) as last_transaction_date
@@ -329,11 +330,11 @@ reports.get('/cash-flow', async (c) => {
       SELECT
         ${periodGroup} as period,
         COALESCE(SUM(CASE WHEN t.transaction_category = 'deposit' THEN ABS(t.amount_normalized) ELSE 0 END), 0) as capital_calls,
-        COALESCE(SUM(CASE WHEN t.transaction_category IN ('income-distribution', 'withdrawal', 'capital-return') THEN ABS(t.amount_normalized) ELSE 0 END), 0) as distributions,
+        COALESCE(SUM(CASE WHEN t.transaction_category IN ('income-distribution', 'withdrawal') THEN ABS(t.amount_normalized) ELSE 0 END), 0) as distributions,
         COALESCE(SUM(CASE WHEN t.transaction_category = 'deposit' THEN ABS(t.amount_usd) ELSE 0 END), 0) as capital_calls_usd,
-        COALESCE(SUM(CASE WHEN t.transaction_category IN ('income-distribution', 'withdrawal', 'capital-return') THEN ABS(t.amount_usd) ELSE 0 END), 0) as distributions_usd,
+        COALESCE(SUM(CASE WHEN t.transaction_category IN ('income-distribution', 'withdrawal') THEN ABS(t.amount_usd) ELSE 0 END), 0) as distributions_usd,
         COUNT(CASE WHEN t.transaction_category = 'deposit' THEN 1 END) as capital_call_count,
-        COUNT(CASE WHEN t.transaction_category IN ('income-distribution', 'withdrawal', 'capital-return') THEN 1 END) as distribution_count
+        COUNT(CASE WHEN t.transaction_category IN ('income-distribution', 'withdrawal') THEN 1 END) as distribution_count
       FROM transactions t
       ${whereClause}
       GROUP BY period
@@ -515,29 +516,33 @@ reports.get('/investment/:id/summary', async (c) => {
  */
 reports.get('/dashboard', async (c) => {
   try {
-    // Get overall statistics
+    // Get overall statistics (excluding stock portfolios)
     const stats = await c.env.DB.prepare(`
       SELECT
         COUNT(DISTINCT i.id) as total_investments,
         COUNT(DISTINCT CASE WHEN i.status = 'active' THEN i.id END) as active_investments,
         COUNT(t.id) as total_transactions,
-        COALESCE(SUM(CASE WHEN t.transaction_category = 'deposit' THEN ABS(t.amount_original) ELSE 0 END), 0) as total_called,
-        COALESCE(SUM(CASE WHEN t.transaction_category IN ('income-distribution', 'withdrawal', 'capital-return') THEN ABS(t.amount_original) ELSE 0 END), 0) as total_distributed,
-        COALESCE(SUM(CASE WHEN t.transaction_category = 'management-fee' THEN ABS(t.amount_original) ELSE 0 END), 0) as total_fees
+        COALESCE(SUM(CASE WHEN t.transaction_category = 'deposit' AND i.product_type != 'תיק השקעות' THEN t.amount_usd ELSE 0 END), 0) as total_called,
+        COALESCE(SUM(CASE WHEN t.transaction_category IN ('income-distribution', 'withdrawal') AND i.product_type != 'תיק השקעות' THEN t.amount_usd ELSE 0 END), 0) as total_distributed,
+        COALESCE(SUM(CASE WHEN t.transaction_category = 'withdrawal' AND i.product_type != 'תיק השקעות' THEN t.amount_usd ELSE 0 END), 0) as capital_returned,
+        COALESCE(SUM(CASE WHEN t.transaction_category = 'income-distribution' AND i.product_type != 'תיק השקעות' THEN t.amount_usd ELSE 0 END), 0) as income_distributed,
+        COALESCE(SUM(CASE WHEN t.transaction_category = 'management-fee' THEN t.amount_usd ELSE 0 END), 0) as total_fees
       FROM investments i
       LEFT JOIN transactions t ON i.id = t.investment_id
     `).first();
 
-    // Get commitment stats (now from investments table)
-    const commitmentStats = await c.env.DB.prepare(`
+    // Get stock portfolio statistics separately
+    const stockPortfolioStats = await c.env.DB.prepare(`
       SELECT
-        COUNT(*) as total_commitments,
-        COALESCE(SUM(commitment_amount_usd), 0) as total_committed,
-        COALESCE(SUM(called_to_date), 0) as total_called,
-        COALESCE(SUM(remaining), 0) as total_remaining
-      FROM investments
-      WHERE commitment_amount_usd IS NOT NULL
+        COALESCE(SUM(CASE WHEN t.transaction_category = 'deposit' THEN t.amount_usd ELSE 0 END), 0) as stock_deposits,
+        COALESCE(SUM(CASE WHEN t.transaction_category IN ('income-distribution', 'withdrawal') THEN t.amount_usd ELSE 0 END), 0) as stock_distributions
+      FROM investments i
+      LEFT JOIN transactions t ON i.id = t.investment_id
+      WHERE i.product_type = 'תיק השקעות'
     `).first();
+
+    // Get open commitments summary with dynamic USD conversion
+    const commitmentsSummary = await getOpenCommitmentsSummary(c.env.DB);
 
     // Get recent transactions
     const recentTransactions = await c.env.DB.prepare(`
@@ -548,24 +553,26 @@ reports.get('/dashboard', async (c) => {
       LIMIT 10
     `).all();
 
-    // Get commitment alerts (now from investments table)
+    // Get commitment alerts
     const alerts = await c.env.DB.prepare(`
       SELECT
         i.id,
         i.id as investment_id,
         i.name as investment_name,
-        i.commitment_amount_usd as commitment_amount,
+        i.initial_commitment as commitment_amount,
+        i.committed_currency,
         i.called_to_date,
         i.remaining,
-        (i.remaining / NULLIF(i.commitment_amount_usd, 0) * 100) as remaining_percentage,
+        (i.called_to_date / NULLIF(i.initial_commitment, 0) * 100) as completion_percentage,
         CASE
-          WHEN i.remaining < 0 THEN 'overdrawn'
-          WHEN i.remaining = 0 THEN 'fully_called'
-          WHEN (i.remaining / NULLIF(i.commitment_amount_usd, 0) * 100) < 10 THEN 'near_exhaustion'
+          WHEN i.called_to_date > i.initial_commitment THEN 'overdrawn'
+          WHEN i.is_complete = 1 OR i.remaining <= 0 THEN 'fully_called'
+          WHEN (i.remaining / NULLIF(i.initial_commitment, 0) * 100) < 10 THEN 'near_exhaustion'
         END as alert_type
       FROM investments i
-      WHERE i.commitment_amount_usd IS NOT NULL
-        AND (i.remaining <= 0 OR (i.remaining / NULLIF(i.commitment_amount_usd, 0) * 100) < 10)
+      WHERE i.initial_commitment IS NOT NULL
+        AND i.is_complete = 0
+        AND (i.remaining <= 0 OR (i.remaining / NULLIF(i.initial_commitment, 0) * 100) < 10)
       ORDER BY i.remaining ASC
     `).all();
 
@@ -576,8 +583,17 @@ reports.get('/dashboard', async (c) => {
         overview: {
           ...stats,
           net_position: (stats?.total_called || 0) - (stats?.total_distributed || 0),
+          stock_deposits: stockPortfolioStats?.stock_deposits || 0,
+          stock_distributions: stockPortfolioStats?.stock_distributions || 0,
+          stock_net_position: (stockPortfolioStats?.stock_deposits || 0) - (stockPortfolioStats?.stock_distributions || 0),
         },
-        commitments: commitmentStats,
+        open_commitments: {
+          total_committed_usd: commitmentsSummary.total_committed_usd,
+          total_called_usd: commitmentsSummary.total_called_usd,
+          total_remaining_usd: commitmentsSummary.total_remaining_usd,
+          commitment_count: commitmentsSummary.count,
+          by_currency: commitmentsSummary.by_currency,
+        },
         recent_transactions: recentTransactions.results,
         alerts: alerts.results,
         alert_count: alerts.results.length,
@@ -609,9 +625,9 @@ reports.get('/equity-returns', async (c) => {
         i.investment_group,
         i.status,
         COALESCE(SUM(CASE WHEN t.transaction_category = 'deposit' THEN ABS(t.amount_normalized) ELSE 0 END), 0) as total_called,
-        COALESCE(SUM(CASE WHEN t.transaction_category IN ('income-distribution', 'withdrawal', 'capital-return') THEN ABS(t.amount_normalized) ELSE 0 END), 0) as total_distributed,
+        COALESCE(SUM(CASE WHEN t.transaction_category IN ('income-distribution', 'withdrawal') THEN ABS(t.amount_normalized) ELSE 0 END), 0) as total_distributed,
         COALESCE(SUM(CASE WHEN t.transaction_category = 'deposit' THEN ABS(t.amount_usd) ELSE 0 END), 0) as total_called_usd,
-        COALESCE(SUM(CASE WHEN t.transaction_category IN ('income-distribution', 'withdrawal', 'capital-return') THEN ABS(t.amount_usd) ELSE 0 END), 0) as total_distributed_usd,
+        COALESCE(SUM(CASE WHEN t.transaction_category IN ('income-distribution', 'withdrawal') THEN ABS(t.amount_usd) ELSE 0 END), 0) as total_distributed_usd,
         COUNT(t.id) as transaction_count,
         MIN(t.date) as first_transaction_date,
         MAX(t.date) as last_transaction_date

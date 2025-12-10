@@ -18,7 +18,7 @@ Financial transaction management system for tracking private equity, venture cap
 
 **transactions**
 - All financial transactions linked to investments
-- `transaction_category`: Mapped slug from transaction type (e.g., 'income-distribution', 'withdrawal', 'deposit', 'capital-return', 'management-fee', 'unrealized-gain-loss')
+- `transaction_category`: Mapped slug from transaction type (e.g., 'income-distribution', 'withdrawal', 'deposit', 'management-fee', 'unrealized-gain-loss')
 - `transaction_type_raw`: Original Hebrew value from CSV
 - `cash_flow_direction`: +1 (money in) or -1 (money out)
 - `amount_original`: Original amount from CSV
@@ -59,18 +59,18 @@ Financial transaction management system for tracking private equity, venture cap
 ### Transaction Type Mappings
 **File**: `src/config/transaction-type-mappings.ts`
 
-| Hebrew | Slug | Display | Directionality |
-|--------|------|---------|----------------|
-| משיכת תשואה | income-distribution | Income Distribution | as_is |
-| משיכה | withdrawal | Withdrawal | as_is |
-| הפקדה | deposit | Deposit | always_negative |
-| החזר הון | capital-return | Capital Return | always_positive |
-| דמי ניהול | management-fee | Management Fee | always_negative |
-| שינוי שווי שוק | unrealized-gain-loss | Unrealized Gain/Loss | as_is |
+| Hebrew | Slug | Display | Directionality | Status |
+|--------|------|---------|----------------|--------|
+| משיכת תשואה | income-distribution | Income Distribution | as_is | Active |
+| משיכה | withdrawal | Withdrawal | as_is | Active |
+| הפקדה | deposit | Deposit | always_negative | Active |
+| דמי ניהול | management-fee | Management Fee | always_negative | Reserved |
+| שינוי שווי שוק | unrealized-gain-loss | Unrealized Gain/Loss | as_is | Reserved |
+
+**Note**: Categories marked "Reserved" are defined for future use but not currently present in transaction data.
 
 **Directionality Rules**:
 - `as_is`: Keep amount sign unchanged
-- `always_positive`: Force positive (capital returns)
 - `always_negative`: Force negative (fees, contributions)
 
 ### CSV Static Mapping
@@ -413,12 +413,11 @@ Per investment or portfolio-wide:
 
 ### Transaction Categories
 System uses slugs for categories instead of enum. Current categories (from transaction-type-mappings):
-- income-distribution
-- withdrawal
-- deposit
-- capital-return
-- management-fee
-- unrealized-gain-loss
+- income-distribution (Active)
+- withdrawal (Active)
+- deposit (Active)
+- management-fee (Reserved for future use)
+- unrealized-gain-loss (Reserved for future use)
 
 ### Investment Phases
 Manually set (no auto-detection currently):

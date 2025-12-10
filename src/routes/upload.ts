@@ -441,7 +441,8 @@ upload.post('/import-transactions', async (c) => {
     const result: TransactionImportResult = await importTransactionsStatic(
       c.env.DB,
       parsedData.rows,
-      file.name
+      file.name,
+      c.env
     );
 
     return c.json<ApiResponse<TransactionImportResult>>({
@@ -455,6 +456,39 @@ upload.post('/import-transactions', async (c) => {
     return c.json<ApiResponse>({
       success: false,
       error: 'Failed to import transactions',
+      message: error instanceof Error ? error.message : 'Unknown error occurred',
+    }, 500);
+  }
+});
+
+/**
+ * POST /api/upload/clear-tables
+ * Clear all transactions and investments from the database
+ * Note: Exchange rates are preserved to avoid expensive API calls
+ */
+upload.post('/clear-tables', async (c) => {
+  try {
+    console.log('[Clear Tables] Clearing transactions and investments...');
+
+    // Clear transactions first (due to foreign key constraint)
+    await c.env.DB.prepare('DELETE FROM transactions').run();
+    console.log('[Clear Tables] Transactions cleared');
+
+    // Clear investments
+    await c.env.DB.prepare('DELETE FROM investments').run();
+    console.log('[Clear Tables] Investments cleared');
+
+    // Note: exchange_rates table is NOT cleared to preserve cached API data
+
+    return c.json<ApiResponse>({
+      success: true,
+      message: 'Transactions and investments cleared (exchange rates preserved)',
+    });
+  } catch (error) {
+    console.error('Error clearing tables:', error);
+    return c.json<ApiResponse>({
+      success: false,
+      error: 'Failed to clear tables',
       message: error instanceof Error ? error.message : 'Unknown error occurred',
     }, 500);
   }
@@ -476,6 +510,7 @@ upload.get('/test', (c) => {
         'POST /api/upload/discover-investments - Phase 1: Discover investments in CSV',
         'POST /api/upload/create-investments - Phase 1b: Create new investments',
         'POST /api/upload/import-transactions - Phase 2: Import transactions from CSV',
+        'POST /api/upload/clear-tables - Clear all transactions and investments',
       ],
     },
   });

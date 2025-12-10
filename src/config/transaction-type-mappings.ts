@@ -33,12 +33,7 @@ export const transactionTypeMappings: TransactionTypeMapping[] = [
     display: 'Deposit',
     directionality: 'always_negative',
   },
-  {
-    hebrew: 'החזר הון',
-    slug: 'capital-return',
-    display: 'Capital Return',
-    directionality: 'always_positive',
-  },
+  // Reserved for future use - not currently in data
   {
     hebrew: 'דמי ניהול',
     slug: 'management-fee',

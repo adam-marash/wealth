@@ -74,6 +74,7 @@ import configure from './routes/configure';
 import test from './routes/test';
 import reports from './routes/reports';
 import transactions from './routes/transactions';
+import { commitments } from './routes/commitments';
 // import investments from './routes/investments';
 // import settings from './routes/settings';
 
@@ -83,6 +84,7 @@ app.route('/api/configure', configure);
 app.route('/api/test', test);
 app.route('/api/reports', reports);
 app.route('/api/transactions', transactions);
+app.route('/api/commitments', commitments);
 // app.route('/api/investments', investments);
 // app.route('/api/settings', settings);
 

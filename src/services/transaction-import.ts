@@ -5,8 +5,10 @@
  */
 
 import type { D1Database } from '@cloudflare/workers-types';
+import type { Env } from '../types';
 import { getTransactionTypeByHebrew } from '../config/transaction-type-mappings';
 import { parse as parseDate, format as formatDate } from 'date-fns';
+import { getExchangeRate, currencySymbolToCode } from './exchange-rate';
 
 export interface TransactionImportRow {
   date: string;
@@ -130,7 +132,8 @@ export function extractTransactionFromRow(row: Record<string, any>, rowIndex: nu
 export async function importTransactions(
   db: D1Database,
   rows: Record<string, any>[],
-  sourceFile: string
+  sourceFile: string,
+  env?: Env
 ): Promise<TransactionImportResult> {
   console.log(`[Transaction Import] Starting import of ${rows.length} rows...`);
 
@@ -208,6 +211,26 @@ export async function importTransactions(
         txData.counterparty
       );
 
+      // Get USD exchange rate and calculate amount_usd
+      let amountUsd: number | null = null;
+      const currencyCode = currencySymbolToCode(txData.currency);
+
+      if (currencyCode === 'USD') {
+        // Already in USD
+        amountUsd = Math.abs(amountNormalized);
+      } else {
+        // Fetch exchange rate for original currency to USD
+        const exchangeRate = await getExchangeRate(db, txData.date, currencyCode, 'USD', env);
+
+        if (exchangeRate !== null) {
+          // Convert: amount_original * rate = amount_usd
+          amountUsd = Math.abs(amountNormalized) * exchangeRate;
+          console.log(`[Transaction Import] Row ${rowIndex}: ${Math.abs(amountNormalized)} ${currencyCode} × ${exchangeRate} = ${amountUsd} USD`);
+        } else {
+          console.warn(`[Transaction Import] Row ${rowIndex}: Could not fetch exchange rate for ${currencyCode}→USD on ${txData.date}`);
+        }
+      }
+
       // Prepare metadata JSON
       const metadata = JSON.stringify(txData.originalRow);
 
@@ -223,12 +246,13 @@ export async function importTransactions(
           original_currency,
           exchange_rate_to_ils,
           amount_ils,
+          amount_usd,
           investment_id,
           counterparty,
           dedup_hash,
           metadata,
           source_file
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(dedup_hash) DO NOTHING
       `;
 
@@ -242,6 +266,7 @@ export async function importTransactions(
         txData.currency,
         txData.exchangeRateToIls ?? null,
         txData.amountIls ?? null,
+        amountUsd,
         investmentId,
         txData.counterparty,
         dedupHash,

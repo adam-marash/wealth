@@ -849,7 +849,7 @@ configure.put('/investments/:id', async (c) => {
 
     // Check if investment exists
     const existing = await c.env.DB.prepare(
-      'SELECT id FROM investments WHERE id = ?'
+      'SELECT id, initial_commitment, committed_currency, commitment_date FROM investments WHERE id = ?'
     ).bind(id).first();
 
     if (!existing) {
@@ -858,6 +858,32 @@ configure.put('/investments/:id', async (c) => {
         error: 'Investment not found',
         message: `No investment found with ID ${id}`,
       }, 404);
+    }
+
+    // Auto-calculate USD value if commitment fields are provided
+    let calculatedUsd: number | null = null;
+
+    // Determine the values to use (new or existing)
+    const commitmentAmount = updates.initial_commitment !== undefined ? updates.initial_commitment : existing.initial_commitment;
+    const commitmentCurrency = updates.committed_currency !== undefined ? updates.committed_currency : existing.committed_currency;
+    const commitmentDate = updates.commitment_date !== undefined ? updates.commitment_date : existing.commitment_date;
+
+    // Calculate USD value if we have all three fields
+    if (commitmentAmount && commitmentCurrency && commitmentDate) {
+      const currencyCode = currencySymbolToCode(commitmentCurrency);
+
+      if (currencyCode === 'USD') {
+        calculatedUsd = commitmentAmount;
+      } else {
+        // Fetch exchange rate
+        const exchangeRate = await getExchangeRate(c.env.DB, commitmentDate, currencyCode, 'USD', c.env);
+        if (exchangeRate !== null) {
+          calculatedUsd = commitmentAmount * exchangeRate;
+          console.log(`[Investment Update] ${commitmentAmount} ${currencyCode} × ${exchangeRate} = ${calculatedUsd} USD`);
+        } else {
+          console.warn(`[Investment Update] Could not fetch exchange rate for ${currencyCode}→USD on ${commitmentDate}`);
+        }
+      }
     }
 
     // Build update query dynamically based on provided fields
@@ -892,7 +918,11 @@ configure.put('/investments/:id', async (c) => {
       fields.push('commitment_date = ?');
       values.push(updates.commitment_date || null);
     }
-    if (updates.commitment_amount_usd !== undefined) {
+    // Use calculated USD value if available, otherwise use provided value
+    if (calculatedUsd !== null) {
+      fields.push('commitment_amount_usd = ?');
+      values.push(calculatedUsd);
+    } else if (updates.commitment_amount_usd !== undefined) {
       fields.push('commitment_amount_usd = ?');
       values.push(updates.commitment_amount_usd || null);
     }

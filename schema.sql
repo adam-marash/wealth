@@ -18,9 +18,9 @@ CREATE TABLE IF NOT EXISTS investments (
     commitment_date TEXT,   -- ISO 8601 date format
     status TEXT DEFAULT 'active',  -- active, fully_called, exited, written_off
     -- Commitment tracking fields (consolidated from commitments table)
-    commitment_amount_usd REAL,     -- USD-normalized commitment amount
-    called_to_date REAL DEFAULT 0,  -- Calculated from transactions
-    remaining REAL,                 -- Calculated: commitment_amount_usd - called_to_date
+    called_to_date REAL DEFAULT 0,  -- Calculated from deposit transactions in original currency
+    remaining REAL,                 -- Calculated: initial_commitment - called_to_date (in original currency)
+    is_complete INTEGER DEFAULT 0,  -- Boolean flag for manual completion override
     phase TEXT,                     -- building_up, stable, drawing_down
     manual_phase INTEGER DEFAULT 0, -- Boolean flag for manual override
     commitment_notes TEXT,          -- Notes about commitment
