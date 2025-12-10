@@ -2,10 +2,14 @@
 node_modules/
 package-lock.json
 
-# Wrangler local state
+# Wrangler local state (temporary)
 .wrangler/
 .dev.vars
-.db/
+
+# Database (PERSISTENT - do not delete!)
+# Track .sqlite files but exclude temporary WAL/SHM files
+.database/**/*.sqlite-wal
+.database/**/*.sqlite-shm
 
 # Environment files
 .env

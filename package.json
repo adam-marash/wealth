@@ -4,12 +4,12 @@
   "description": "Financial Transaction Management System for Family Office",
   "main": "src/index.ts",
   "scripts": {
-    "dev": "wrangler dev",
-    "dev:fresh": "npm run db:migrate:local && wrangler dev",
+    "dev": "wrangler dev --persist-to ./.database",
+    "dev:fresh": "npm run db:migrate:local && wrangler dev --persist-to ./.database",
     "deploy": "wrangler deploy",
     "db:local": "wrangler d1 execute transactions_db --local --command",
     "db:remote": "wrangler d1 execute transactions_db --remote --command",
-    "db:migrate:local": "wrangler d1 execute transactions_db --local --file=./schema.sql --persist-to ./.db",
+    "db:migrate:local": "wrangler d1 execute transactions_db --local --file=./schema.sql --persist-to ./.database",
     "db:migrate:remote": "wrangler d1 execute transactions_db --remote --file=./schema.sql",
     "type-check": "tsc --noEmit"
   },

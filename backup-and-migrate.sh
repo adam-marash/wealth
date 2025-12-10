@@ -3,8 +3,8 @@
 
 set -e
 
-# Database file location
-DB_FILE=".wrangler/state/v3/d1/miniflare-D1DatabaseObject/18be79d38fd2493c122fe83ebdebd2a91b476bf2c9583d675f2c8071ba86e8ed.sqlite"
+# Database file location (PERSISTENT)
+DB_FILE=".database/v3/d1/miniflare-D1DatabaseObject/18be79d38fd2493c122fe83ebdebd2a91b476bf2c9583d675f2c8071ba86e8ed.sqlite"
 
 if [ ! -f "$DB_FILE" ]; then
     echo "Error: Database file not found at $DB_FILE"
