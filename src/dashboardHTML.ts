@@ -204,6 +204,32 @@ export const dashboardHTML = `<!DOCTYPE html>
     .amount { font-variant-numeric: tabular-nums; }
     .amount.positive { color: #10b981; }
     .amount.negative { color: #ef4444; }
+    .commitment-progress {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .progress-bar {
+      flex: 1;
+      height: 8px;
+      background: #e5e7eb;
+      border-radius: 4px;
+      overflow: hidden;
+      min-width: 80px;
+    }
+    .progress-fill {
+      height: 100%;
+      background: #3b82f6;
+      transition: width 0.3s ease;
+    }
+    .progress-fill.complete {
+      background: #10b981;
+    }
+    .commitment-text {
+      font-size: 12px;
+      color: #666;
+      white-space: nowrap;
+    }
     .loading {
       text-align: center;
       padding: 40px;
@@ -483,7 +509,7 @@ export const dashboardHTML = `<!DOCTYPE html>
       if (loading) return <div className="loading">Loading...</div>;
       if (!data) return <div className="error">Failed to load data</div>;
 
-      const { overview, recent_transactions } = data;
+      const { overview, recent_transactions, open_commitments } = data;
 
       const netPositionSubtitle = 'Called ' + formatCurrency(overview.total_called) +
         ' - Distributed ' + formatCurrency(overview.total_distributed) +
@@ -492,6 +518,11 @@ export const dashboardHTML = `<!DOCTYPE html>
 
       const stockSubtitle = 'Deposits ' + formatCurrency(overview.stock_deposits) +
         ' - Withdrawals ' + formatCurrency(overview.stock_distributions);
+
+      const commitmentsSubtitle = open_commitments && open_commitments.count > 0
+        ? open_commitments.count + ' open commitment' + (open_commitments.count !== 1 ? 's' : '') +
+          ' • Called ' + formatCurrency(open_commitments.total_called_usd)
+        : 'No open commitments';
 
       return (
         <>
@@ -505,6 +536,12 @@ export const dashboardHTML = `<!DOCTYPE html>
               type={overview.net_position >= 0 ? 'negative' : 'positive'} />
             <MetricCard title="Stock Portfolios Net" value={formatCurrency(overview.stock_net_position)}
               subtitle={stockSubtitle} />
+            {open_commitments && open_commitments.count > 0 && (
+              <MetricCard title="Open Commitments"
+                value={formatCurrency(open_commitments.total_remaining_usd)}
+                subtitle={commitmentsSubtitle}
+                type="negative" />
+            )}
           </div>
           <div className="widget">
             <div className="widget-header">
@@ -1255,9 +1292,19 @@ export const dashboardHTML = `<!DOCTYPE html>
                     <td style={{fontFamily:'monospace',fontSize:'12px',color:'#666'}}>{inv.slug || '-'}</td>
                     <td>{inv.product_type || '-'}</td>
                     <td>
-                      {inv.initial_commitment && inv.committed_currency
-                        ? formatNumber(inv.initial_commitment) + ' ' + inv.committed_currency
-                        : '-'}
+                      {inv.initial_commitment && inv.committed_currency ? (
+                        <div className="commitment-progress">
+                          <div className="progress-bar">
+                            <div
+                              className={'progress-fill' + ((inv.called_to_date || 0) >= inv.initial_commitment ? ' complete' : '')}
+                              style={{width: Math.min(100, ((inv.called_to_date || 0) / inv.initial_commitment) * 100) + '%'}}
+                            />
+                          </div>
+                          <span className="commitment-text">
+                            {formatNumber(inv.remaining || inv.initial_commitment)} {inv.committed_currency}
+                          </span>
+                        </div>
+                      ) : '-'}
                     </td>
                     <td><span className="badge">{inv.status}</span></td>
                     <td onClick={(e) => e.stopPropagation()}>

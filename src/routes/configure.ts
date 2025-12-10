@@ -741,6 +741,9 @@ configure.get('/investments-list', async (c) => {
         initial_commitment,
         committed_currency,
         commitment_date,
+        called_to_date,
+        remaining,
+        is_complete,
         status,
         created_at,
         updated_at
@@ -756,6 +759,9 @@ configure.get('/investments-list', async (c) => {
       initial_commitment: number | null;
       committed_currency: string | null;
       commitment_date: string | null;
+      called_to_date: number | null;
+      remaining: number | null;
+      is_complete: number | null;
       status: string;
       created_at: string;
       updated_at: string;
