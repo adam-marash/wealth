@@ -10,6 +10,20 @@
 
 import { D1Database } from '@cloudflare/workers-types';
 
+/**
+ * Currency code to symbol mapping
+ * Matches ISO codes (USD, EUR, ILS) used in commitments
+ * to symbols ($, €, ₪) used in transactions
+ */
+function currencyCodeToSymbol(isoCode: string): string {
+  const mapping: Record<string, string> = {
+    'USD': '$',
+    'EUR': '€',
+    'ILS': '₪',
+  };
+  return mapping[isoCode] || isoCode;
+}
+
 export interface CommitmentStatus {
   investment_id: number;
   investment_name: string;
@@ -52,6 +66,9 @@ export async function calculateCalledToDate(
   investmentId: number,
   committedCurrency: string
 ): Promise<number> {
+  // Convert ISO currency code to symbol for matching transactions
+  const currencySymbol = currencyCodeToSymbol(committedCurrency);
+
   // Sum all deposit transactions for this investment
   const result = await db
     .prepare(
@@ -62,7 +79,7 @@ export async function calculateCalledToDate(
         AND transaction_category = 'deposit'
         AND original_currency = ?`
     )
-    .bind(investmentId, committedCurrency)
+    .bind(investmentId, currencySymbol)
     .first<{ total_called: number }>();
 
   return Math.abs(result?.total_called || 0);
