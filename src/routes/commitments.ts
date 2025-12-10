@@ -122,6 +122,34 @@ commitments.get('/:investmentId', async (c) => {
 });
 
 /**
+ * POST /api/commitments/recalculate
+ * Recalculate all commitment statuses (called_to_date, remaining)
+ * Should be called after transaction imports
+ */
+commitments.post('/recalculate', async (c) => {
+  try {
+    const db = c.env.DB;
+
+    await updateAllCommitmentStatuses(db);
+
+    return c.json<ApiResponse>({
+      success: true,
+      message: 'All commitment statuses recalculated successfully',
+    });
+  } catch (error: any) {
+    console.error('Error recalculating commitments:', error);
+    return c.json<ApiResponse>(
+      {
+        success: false,
+        error: error.message || 'Failed to recalculate commitments',
+        message: 'An error occurred while recalculating commitment statuses',
+      },
+      500
+    );
+  }
+});
+
+/**
  * POST /api/commitments/:investmentId
  * Add or update commitment for an investment
  *
@@ -318,34 +346,6 @@ commitments.put('/:investmentId/complete', async (c) => {
         success: false,
         error: error.message || 'Failed to update completion status',
         message: 'An error occurred while updating commitment status',
-      },
-      500
-    );
-  }
-});
-
-/**
- * POST /api/commitments/recalculate
- * Recalculate all commitment statuses (called_to_date, remaining)
- * Should be called after transaction imports
- */
-commitments.post('/recalculate', async (c) => {
-  try {
-    const db = c.env.DB;
-
-    await updateAllCommitmentStatuses(db);
-
-    return c.json<ApiResponse>({
-      success: true,
-      message: 'All commitment statuses recalculated successfully',
-    });
-  } catch (error: any) {
-    console.error('Error recalculating commitments:', error);
-    return c.json<ApiResponse>(
-      {
-        success: false,
-        error: error.message || 'Failed to recalculate commitments',
-        message: 'An error occurred while recalculating commitment statuses',
       },
       500
     );
